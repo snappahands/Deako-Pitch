@@ -1,0 +1,1800 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deako — How it works, in four clicks</title>
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Deako · four-box demo   ·   public/pitch/
+   Panels 2 and 3 need nothing — real product art, animated here.
+   Panel 4 plays video/intelligence-web.mp4 (committed) and falls back to
+   the uncompressed master if it is sitting alongside it.
+   Panel 1 plays video/wiring.mp4 when that file exists — offline, no
+   network — and otherwise embeds the YouTube cut in the panel. Drop an
+   mp4 in at that path and it takes over automatically.
+   All stills/cutouts live in media/; see the footer for provenance.
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --navy:#0f1e3d; --navy-2:#1b2d6b; --blue:#1ba0dd; --blue-d:#0d7fb4;
+  --teal:#3d6b7d; --ink:#16202e; --ink-2:#5a6675; --muted:#93a0b0;
+  --line:#e3e8ef; --panel:#f5f7fa; --white:#fff;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+.hidden{display:none!important}
+html,body{height:100%}
+body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--navy);-webkit-font-smoothing:antialiased}
+
+.stage{min-height:100vh;display:flex;flex-direction:column;padding:16px 18px 16px;gap:12px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;color:#fff}
+.brand{display:flex;align-items:baseline;gap:12px}
+.brand .logo{font-size:25px;font-weight:800;letter-spacing:-.03em}
+.brand .logo span{color:var(--blue)}
+.brand .kick{font-size:13px;font-weight:600;color:#8fa4c0}
+header .hint{font-size:12.5px;color:#8fa4c0;font-weight:600}
+header .hint b{color:var(--blue)}
+
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;min-height:0}
+@media (max-width:940px){.grid{grid-template-columns:1fr;grid-template-rows:none}.box{min-height:460px}}
+
+.box{position:relative;background:var(--white);border-radius:14px;overflow:hidden;cursor:pointer;
+  display:flex;flex-direction:column;min-height:0;
+  box-shadow:0 18px 40px -20px rgba(0,0,0,.55);transition:transform .25s,box-shadow .25s}
+.box:hover{transform:translateY(-2px);box-shadow:0 24px 50px -20px rgba(0,0,0,.6)}
+.box:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+.cap{padding:13px 17px 0;flex:none;position:relative;z-index:6}
+.num{position:absolute;top:11px;right:13px;width:21px;height:21px;border-radius:50%;
+  background:var(--panel);color:var(--muted);font-size:11px;font-weight:800;display:grid;place-items:center;z-index:7}
+.eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--blue)}
+h2{margin:3px 0 0;font-size:18px;letter-spacing:-.02em;line-height:1.15;color:var(--navy)}
+.sub{margin:3px 0 0;font-size:12px;line-height:1.4;color:var(--ink-2);max-width:52ch}
+.canvas{flex:1;position:relative;min-height:0;overflow:hidden}
+
+.cue{position:absolute;left:16px;bottom:20px;z-index:8;display:inline-flex;align-items:center;gap:7px;
+  font-size:11.5px;font-weight:800;color:var(--navy-2);background:rgba(255,255,255,.93);
+  border:1px solid var(--line);border-radius:999px;padding:5px 11px;transition:opacity .2s;
+  max-width:calc(100% - 130px);line-height:1.3}
+.cue .dot{flex:none}
+.cuebtn{font:inherit;font-size:11.5px;font-weight:800;cursor:pointer;text-align:left}
+.cuebtn:hover{border-color:var(--blue);color:var(--blue-d);box-shadow:0 0 0 3px rgba(27,160,221,.18)}
+/* the swap line is a caption, not something to press */
+.hud.wide{font-size:12px;max-width:calc(100% - 290px);white-space:nowrap;text-align:center;
+  line-height:1.35;padding:7px 16px;overflow:hidden;text-overflow:ellipsis}
+.cue .dot{width:7px;height:7px;border-radius:50%;background:var(--blue);animation:pulse 1.9s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
+.box.playing .cue{opacity:0}
+#b2.playing .cue{opacity:1}
+body.packrun #b2 .cue{opacity:0;pointer-events:none}
+.replay{position:absolute;right:16px;bottom:20px;z-index:8;font:inherit;font-size:11px;font-weight:800;
+  color:var(--navy-2);background:rgba(255,255,255,.93);border:1px solid var(--line);border-radius:999px;
+  padding:5px 11px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .2s}
+.box.playing .replay{opacity:1;pointer-events:auto}
+.replay:hover{border-color:var(--blue);color:var(--blue-d)}
+
+/* ── stills + video ──────────────────────────────────────────── */
+.still{position:absolute;inset:0;padding:4px 12px 12px;transition:opacity .3s}
+.still img{width:100%;height:100%;object-fit:contain;display:block;border-radius:10px;box-sizing:border-box}
+.vidwrap{position:absolute;inset:0;background:#000;z-index:5;border-radius:10px;overflow:hidden}
+.vidwrap video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;
+  background:rgba(255,255,255,.94);display:grid;place-items:center;box-shadow:0 8px 26px rgba(0,0,0,.4);
+  pointer-events:none;z-index:6;transition:opacity .2s}
+.play::after{content:"";border-left:18px solid var(--navy);border-top:11px solid transparent;
+  border-bottom:11px solid transparent;margin-left:5px}
+.box.playing .play{opacity:0}
+.missing{position:absolute;inset:0;display:grid;place-items:center;padding:22px;text-align:center;z-index:7;
+  background:linear-gradient(150deg,rgba(19,36,73,.96),rgba(11,23,48,.97))}
+.missing .mi{max-width:40ch;color:#c7d4e6}
+.mt{font-size:13.5px;font-weight:800;color:#fff}
+.missing code{display:inline-block;margin-top:9px;font-size:11.5px;background:rgba(27,160,221,.16);
+  color:#7fd0f5;border:1px solid rgba(27,160,221,.35);border-radius:5px;padding:3px 9px}
+.mn{font-size:11px;color:#8fa4c0;margin-top:11px;line-height:1.5}
+.mn b{color:#c7d4e6}
+.mn .u{color:#7fd0f5;word-break:break-all}
+.diag{margin-top:10px;font-size:9.5px;font-weight:700;color:#7fd0f5;background:rgba(27,160,221,.12);
+  border:1px solid rgba(27,160,221,.3);border-radius:5px;padding:4px 8px;word-break:break-word}
+.ytlink{display:inline-block;margin-top:9px;font-size:11px;font-weight:800;color:#fff;
+  background:rgba(27,160,221,.85);border-radius:999px;padding:5px 12px;text-decoration:none}
+.ytlink:hover{background:var(--blue)}
+
+/* ── panel 2 · a living room, the swap, then the room wired up ── */
+/* Transition: the gif cross-dissolves with a small push while the room
+   settles back to rest, then the plates arrive on the walls a beat later.
+   Nothing wipes or slides sideways - the room never appears to move. */
+.room{position:absolute;inset:4px 12px 12px;z-index:2;overflow:hidden;border-radius:10px;
+  transform:scale(1.04);opacity:0;transition:transform .7s ease,opacity .5s ease}
+.room.show{transform:scale(1);opacity:1}
+.room img{width:100%;height:100%;object-fit:cover;display:block;transition:filter 1s ease}
+.rdark{position:absolute;inset:0;background:#050b18;opacity:.72;transition:opacity 1s ease;z-index:1}
+/* the candle sits above the dimming wash - no switch in the house turns it off */
+.candle{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2;
+  pointer-events:none;mix-blend-mode:screen;opacity:0;transition:opacity 1s ease}
+
+.gifplay{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:5;
+  padding:6px 14px 44px;box-sizing:border-box;border-radius:10px;background:#f4f6f9;
+  opacity:0;transition:opacity .45s ease}
+.gifplay.show{opacity:1}
+
+/* the plates, small, on the wall either side of the couch */
+.menu2{position:absolute;inset:0;z-index:7;pointer-events:none}
+.mcol{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;
+  gap:11px;pointer-events:auto}
+.mcol.l{left:16px} .mcol.r{right:16px}
+/* the switch sits inboard, against the gif; the name runs outward into the margin */
+.mitem{display:flex;align-items:center;gap:9px;cursor:pointer;transition:transform .2s}
+.mcol.l .mitem{flex-direction:row-reverse}
+.mitem img{width:56px;height:auto;display:block;flex:none;
+  filter:drop-shadow(0 4px 10px rgba(15,30,61,.3));transition:filter .2s}
+.mitem .mn{width:84px;font-size:10.5px;font-weight:800;line-height:1.2;color:var(--ink-2)}
+.mcol.l .mitem .mn{text-align:right}
+.mcol.r .mitem .mn{text-align:left}
+.mitem:hover{transform:translateY(-2px)}
+.mitem:hover img{filter:drop-shadow(0 6px 15px rgba(27,160,221,.6))}
+.mitem:hover .mn{color:var(--blue-d)}
+.walls{position:absolute;inset:0;z-index:6}
+.gangwrap{position:absolute;opacity:0;transform:translateY(7px) scale(.94);
+  transition:opacity .55s ease,transform .55s cubic-bezier(.3,1.3,.5,1)}
+.walls.show .gangwrap{opacity:1;transform:none}
+.walls.show #gw4{transition-delay:.12s}
+.walls.show #gw2{transition-delay:.24s}
+#gw4{left:20.5%;top:29.4%;width:6.9%}
+#gw2{left:71.2%;top:30.7%;width:3.8%}
+.gangwrap img{width:100%;height:auto;display:block;
+  filter:drop-shadow(0 6px 14px rgba(0,0,0,.55)) brightness(.92)}
+.hot{position:absolute;top:25%;height:51%;cursor:pointer;border-radius:2px;
+  transition:box-shadow .2s,background .2s}
+.hot:hover{background:rgba(27,160,221,.28);box-shadow:0 0 0 2px var(--blue)}
+.hot.out{background:rgba(6,12,24,.72);box-shadow:inset 0 2px 6px rgba(0,0,0,.7)}
+
+/* a fan hung from the ceiling, blades sweeping in plane */
+.fanrig{--fw:274px;position:absolute;z-index:3;left:47.9%;top:-41.6%;transform:translateX(-50%);z-index:3;
+  perspective:1000px;opacity:0;transition:opacity .5s;pointer-events:none}
+.fanrig.show{opacity:1}
+.rod{width:5px;height:16px;margin:0 auto;border-radius:3px;
+  background:linear-gradient(90deg,#2e1c10,#5a3a22 45%,#33200f)}
+.canopy{width:26px;height:8px;margin:-1px auto 0;border-radius:5px 5px 8px 8px;
+  background:linear-gradient(180deg,#5a3a22,#2e1c10);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.fanhub{position:relative;width:var(--fw);height:var(--fw);margin:-5px auto 0;
+  transform:rotateX(71deg);transform-style:preserve-3d}
+.blades{position:absolute;inset:0}
+.blades i{position:absolute;left:50%;top:50%;width:calc(var(--fw)*.47);
+  height:calc(var(--fw)*.077);margin-top:calc(var(--fw)*-.0385);
+  transform-origin:0 50%;border-radius:2px 8px 8px 2px;
+  background:linear-gradient(180deg,#8a5d3a 0%,#634126 38%,#3a2413 100%);
+  box-shadow:0 4px 9px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,225,193,.28)}
+.blades i::after{content:"";position:absolute;right:0;top:50%;width:calc(var(--fw)*.112);
+  height:calc(var(--fw)*.051);margin-top:calc(var(--fw)*-.0255);border-radius:2px 7px 7px 2px;
+  background:linear-gradient(180deg,#9a6a43,#6b482a)}
+.fanrig.spin .blades{animation:whirl 2.2s linear infinite}
+.fanrig.s2 .blades{animation-duration:1s}
+.fanrig.s3 .blades{animation-duration:.38s}
+@keyframes whirl{to{transform:rotate(360deg)}}
+.motor{position:absolute;left:50%;top:50%;width:calc(var(--fw)*.204);
+  height:calc(var(--fw)*.204);margin:calc(var(--fw)*-.102) 0 0 calc(var(--fw)*-.102);
+  border-radius:50%;box-shadow:0 3px 9px rgba(0,0,0,.55);
+  background:radial-gradient(circle at 36% 30%,#7d5334,#4a2f1d 60%,#241407)}
+
+/* the module pulled to the front */
+.plate2{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);z-index:8;
+  padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.9);cursor:pointer;
+  box-shadow:0 12px 30px rgba(6,14,32,.45);transition:box-shadow .3s,background .6s}
+.plate2:hover{box-shadow:0 12px 34px rgba(27,160,221,.55)}
+.plate2.dusk{background:rgba(28,36,52,.82)}
+.plate2.dim-live{cursor:ns-resize}
+.valbub{position:absolute;left:50%;top:-30px;transform:translate(-50%,-6px);white-space:nowrap;
+  font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#4a3111;
+  background:linear-gradient(180deg,#ffe3a8,#ffd074);border-radius:999px;padding:5px 14px;
+  box-shadow:0 7px 18px rgba(6,14,32,.45);opacity:0;pointer-events:none;
+  transition:opacity .4s ease,transform .4s cubic-bezier(.3,1.3,.5,1)}
+.valbub::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);
+  border-top:7px solid #ffd074;border-left:6px solid transparent;border-right:6px solid transparent}
+.valbub.show{opacity:1;transform:translate(-50%,0)}
+.modwrap{position:relative;height:132px}
+.modwrap img{height:100%;width:auto;display:block;
+  transition:transform .8s cubic-bezier(.4,1.3,.5,1),opacity .5s,filter .6s}
+.modwrap img.dusk{filter:brightness(.30) saturate(.7)}
+.plate2.dropping .modwrap img{transform:translateY(-120%);opacity:0}
+.nlbar{position:absolute;left:62.6%;top:26.4%;width:16.2%;height:39%;border-radius:2px;
+  background:linear-gradient(180deg,#fffef7,#fff8dc);opacity:0;transition:opacity .5s;
+  box-shadow:0 0 20px 7px rgba(255,251,226,.85),0 0 42px 16px rgba(255,246,205,.45)}
+.nlbar.glow{opacity:1}
+.hand{position:absolute;left:-78px;top:20%;width:70px;height:70px;z-index:9;opacity:0;
+  pointer-events:none;transition:opacity .3s ease,top .5s ease;
+  filter:drop-shadow(0 5px 10px rgba(0,0,0,.5))}
+.hand span{position:absolute;inset:0;display:grid;place-items:center;font-size:50px;line-height:1;
+  transition:opacity .3s ease}
+.hand.show{opacity:1}
+.hand .h-point{opacity:0}
+.hand.pointing .h-open{opacity:0}
+.hand.pointing .h-point{opacity:1}
+/* the press reaches right, into the paddle */
+.hand.tap{animation:tapx .6s ease}
+@keyframes tapx{0%,100%{transform:translateX(0) scale(1)}
+  42%{transform:translateX(21px) scale(.94)}
+  60%{transform:translateX(15px) scale(.97)}}
+/* the wave stays open and sweeps across the sensor */
+.hand.wave{animation:wavex 1.05s ease-in-out infinite}
+@keyframes wavex{0%,100%{transform:translate(8px,0) rotate(0)}
+  25%{transform:translate(24px,-9px) rotate(9deg)}
+  75%{transform:translate(24px,9px) rotate(-9deg)}}
+.dknob{position:absolute;left:63.4%;width:13.6%;height:9.4%;border-radius:7px;
+  background:linear-gradient(180deg,#fff,#e9edf3);border:1px solid #c4ccd7;
+  box-shadow:0 2px 5px rgba(15,30,61,.35);transition:top .12s linear}
+
+.hud{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:9;
+  font-size:11px;font-weight:800;color:#0f1e3d;background:rgba(255,255,255,.94);
+  border-radius:999px;padding:5px 13px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(6,14,32,.3)}
+.hud b{color:var(--blue-d)}
+
+/* ── panel 3 · the smart family, the app, and the pack demo ────── */
+.smartrow{position:absolute;inset:0;padding:4px 12px 12px;z-index:4;
+  transition:opacity .5s ease,transform .5s ease}
+.smartcard{width:100%;height:100%;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;gap:5cqw;padding:0 18px;
+  background:linear-gradient(160deg,#eff4fa 0%,#dfe8f3 100%);
+  box-shadow:inset 0 0 0 1px rgba(120,140,168,.22)}
+.smartrow.back{opacity:.18;transform:scale(.92)}
+.sm{text-align:center;max-width:150px}
+.sm img{height:128px;width:auto;display:block;margin:0 auto;
+  filter:drop-shadow(0 8px 18px rgba(15,30,61,.32))}
+.sm span{display:block;margin-top:8px;font-size:12.5px;font-weight:800;color:var(--ink);
+  line-height:1.25}
+.phone3{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%) scale(.9);
+  height:88%;z-index:14;opacity:0;pointer-events:none;border-radius:14px;
+  box-shadow:0 18px 40px rgba(6,14,32,.6);
+  transition:opacity .45s ease,transform .5s cubic-bezier(.3,1.3,.5,1)}
+.phone3.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.phone3 img{height:100%;width:auto;display:block;border-radius:14px}
+/* sits exactly on the app's first Groups row */
+.approw{position:absolute;left:5.8%;right:5%;top:21.5%;height:10.4%;border-radius:9px;
+  background:#5d8a99;display:flex;flex-direction:column;justify-content:center;padding:0 9px;
+  box-shadow:0 2px 8px rgba(0,0,0,.28);transition:background .45s ease}
+.approw b{font-size:11px;font-weight:800;color:#fff;line-height:1.15}
+.approw span{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.9);line-height:1.15}
+.approw.scene{justify-content:center}
+.approw.off{background:#e7eaee}
+.approw.off b{color:#3b4657}
+.approw.off span{color:#929cab}
+.apfinger{position:absolute;left:50%;top:26.5%;transform:translateX(-50%);font-size:40px;
+  line-height:1;opacity:0;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5));transition:opacity .3s ease}
+.apfinger.show{opacity:1}
+.apfinger.tap{animation:aptap .6s ease}
+@keyframes aptap{0%,100%{transform:translateX(-50%) translateY(0) scale(1)}
+  42%{transform:translateX(-50%) translateY(-13px) scale(.93)}
+  62%{transform:translateX(-50%) translateY(-7px) scale(.97)}}
+.voicerow{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  gap:5cqw;z-index:15;opacity:0;pointer-events:none;transition:opacity .5s ease;padding:0 16px}
+.voicerow.show{opacity:1}
+.vd{text-align:center;opacity:0;transform:translateY(12px);
+  transition:opacity .45s ease,transform .45s cubic-bezier(.3,1.3,.5,1)}
+.vd.up{opacity:1;transform:none}
+.vd img{width:136px;height:122px;object-fit:contain;background:#fff;padding:8px;
+  border-radius:16px;display:block;margin:0 auto;
+  box-shadow:0 12px 26px rgba(0,0,0,.6)}
+.vb{margin-top:14px;position:relative;background:#fff;border:2.5px solid #10233f;border-radius:14px;
+  padding:10px 15px;font-size:14.5px;font-weight:800;color:#10233f;line-height:1.32;max-width:250px}
+.vb b{color:var(--blue-d)}
+.vb::before{content:"";position:absolute;left:50%;top:-13px;transform:translateX(-50%);
+  border-bottom:11px solid #10233f;border-left:8px solid transparent;border-right:8px solid transparent}
+.vb::after{content:"";position:absolute;left:50%;top:-9px;transform:translateX(-50%);
+  border-bottom:9px solid #fff;border-left:7px solid transparent;border-right:7px solid transparent}
+.extclip{position:absolute;inset:4px 12px 12px;width:calc(100% - 24px);height:calc(100% - 16px);
+  object-fit:cover;border-radius:10px;z-index:13;opacity:0;pointer-events:none;
+  transition:opacity .6s ease}
+.extclip.show{opacity:1}
+/* The Netflix scene from the Ambience slide is shot portrait, and the camera
+   drifts, so cropping it to landscape risks cutting the television. It is let
+   into the frame whole instead, and the surround is a blurred copy of itself
+   rather than black bars. */
+.movwrap{position:absolute;inset:4px 12px 12px;width:calc(100% - 24px);height:calc(100% - 16px);
+  border-radius:10px;overflow:hidden;background:#05070b;z-index:14;opacity:0;
+  pointer-events:none;transition:opacity .6s ease}
+.movwrap.show{opacity:1}
+.movbg,.movfg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.movbg{object-fit:cover;filter:blur(28px) brightness(.5) saturate(1.15);transform:scale(1.18)}
+.movfg{object-fit:contain}
+body.packrun #b3 .movwrap{top:48px;height:calc(100% - 60px)}
+.demorow{position:absolute;left:16px;right:16px;bottom:20px;z-index:8;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:stretch}
+.demorow .cue{position:static;max-width:none;font-size:10.5px;line-height:1.25;
+  padding:6px 10px;justify-content:center;text-align:center}
+.demoslot{display:block}
+#b3.playing .demorow{opacity:0;pointer-events:none}
+/* While a demo runs the photograph drops a little and the caption takes the
+   strip that opens above it - so the caption is never over the picture, and
+   it has the panel's whole width rather than the gap between the heading and
+   the Reset button, which the longer lines did not fit. */
+.packtag{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:15;
+  font-size:12px;font-weight:800;color:#0f1e3d;background:rgba(255,255,255,.96);
+  border-radius:999px;padding:6px 15px;white-space:nowrap;opacity:0;transition:opacity .4s;
+  box-shadow:0 4px 14px rgba(6,14,32,.32)}
+#b3 .packroom,#b3 .extclip,#b3 .smartrow{transition:top .45s ease,height .45s ease,
+  opacity .6s ease,transform .5s ease}
+body.packrun #b3 .packroom{top:48px}
+body.packrun #b3 .smartrow{top:44px}
+body.packrun #b3 .extclip{top:48px;height:calc(100% - 60px)}
+.packtag.show{opacity:1}
+
+/* a room laid over any panel, and the dark it can fall into */
+.packroom{position:absolute;inset:4px 12px 12px;z-index:12;border-radius:10px;overflow:hidden;
+  opacity:0;pointer-events:none;transition:opacity .6s ease}
+.packroom.show{opacity:1}
+.packroom img{width:100%;height:100%;object-fit:cover;display:block}
+.pdark{position:absolute;inset:0;background:#050b18;opacity:0;transition:opacity 1.1s ease;z-index:1}
+/* The television is part of the photograph, so the "on" state is a second
+   layer at the photograph's own dimensions: object-fit crops both the same
+   way, which keeps the glow locked to the screen at any window size. It sits
+   above the dimming wash, so a dark room does not put the television out. */
+.tvglow{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2;
+  opacity:0;pointer-events:none;transition:opacity .9s ease}
+.tvglow.on{opacity:1}
+.pdark.on{opacity:.93}
+.plabel{position:absolute;left:13px;top:11px;font-size:9.5px;font-weight:800;letter-spacing:.14em;
+  text-transform:uppercase;color:#dbe6f4;text-shadow:0 1px 6px rgba(0,0,0,.95)}
+.pmsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:16;
+  font-size:15px;font-weight:800;color:#f4f8ff;text-align:center;line-height:1.4;
+  max-width:80%;opacity:0;pointer-events:none;transition:opacity .6s ease;
+  text-shadow:0 2px 16px rgba(0,0,0,.95)}
+.pmsg.show{opacity:1}
+#pmsg2{z-index:16}
+
+/* ── panel 4 · the four Intelligence tiles ───────────────────── */
+.tiles{position:absolute;inset:0;padding:4px 12px 12px;display:grid;grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;gap:6px}
+.tile{position:relative;border-radius:10px;overflow:hidden;background:#0d1a33}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .tl{position:absolute;left:0;right:0;bottom:0;padding:20px 10px 8px;color:#fff;font-size:12px;
+  font-weight:800;letter-spacing:.02em;background:linear-gradient(transparent,rgba(6,14,32,.85))}
+
+#b4 .cap{padding-bottom:6px}
+.tile{cursor:pointer}
+.tile::after{content:"";position:absolute;inset:0;border:2px solid transparent;border-radius:9px;
+  transition:border-color .2s,background .2s}
+.tile:hover::after{border-color:var(--blue);background:rgba(27,160,221,.10)}
+.chaps{position:absolute;left:16px;right:16px;bottom:20px;z-index:8;display:grid;
+  grid-template-columns:repeat(4,1fr);gap:5px}
+.chaps button{font:inherit;font-size:10px;font-weight:800;color:#c7d4e6;background:rgba(11,23,48,.82);
+  border:1px solid rgba(199,212,230,.28);border-radius:999px;padding:5px 4px;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all .2s}
+.chaps button:hover{border-color:var(--blue);color:#fff}
+.chaps button.now{background:var(--blue);border-color:var(--blue);color:#fff}
+.ytwrap{position:absolute;inset:0;background:#000;z-index:5;overflow:hidden;border-radius:10px}
+.ytwrap>div,.ytwrap>iframe{width:100%;height:100%;border:0;display:block}
+.spd{position:absolute;right:10px;top:8px;z-index:9;display:flex;flex-direction:column;
+  align-items:flex-end;gap:3px}
+.spdrow{display:flex;gap:4px}
+.spd button{font:inherit;font-size:10.5px;font-weight:800;color:#c7d4e6;background:rgba(11,23,48,.82);
+  border:1px solid rgba(199,212,230,.3);border-radius:999px;padding:4px 9px;cursor:pointer;transition:all .2s}
+.spd button:hover{border-color:var(--blue);color:#fff}
+.spd button.now{background:var(--blue);border-color:var(--blue);color:#fff}
+.spd button.capped{opacity:.55}
+.spd .note{font-size:9px;font-weight:700;color:#c7d4e6;background:rgba(11,23,48,.78);
+  border-radius:999px;padding:2px 7px;white-space:nowrap}
+#b1 .cap{padding-bottom:4px}
+/* while it plays, the clip owns the whole tile, then hands it back */
+#b1 .vidwrap,#b1 .ytwrap,#b1 .missing{inset:0;z-index:20;border-radius:14px}
+#b1 .spd{z-index:22}
+/* -- panel 1 - the switch design story ------------------------- */
+.design{position:absolute;inset:4px 12px 12px;z-index:12;border-radius:10px;
+  background:linear-gradient(168deg,#f8fbfd 0%,#e8eff8 100%);
+  display:flex;flex-direction:column;align-items:center;padding:9px 12px 12px;
+  opacity:0;pointer-events:none;transition:opacity .45s ease,padding-bottom .5s ease}
+.design.show{opacity:1}
+/* when the bullets arrive the three switches slide left and draw together,
+   leaving the right-hand third to Deako's own points */
+.design.bul .dsgrow{width:62%;gap:6px}
+.dsghead{flex:none;font-size:12.5px;font-weight:800;color:var(--navy-2)}
+/* the narration keeps its own line, so the row never jumps */
+.dsgsay{flex:none;height:30px;width:100%;margin-top:5px;
+  display:flex;align-items:center;justify-content:center}
+.dsgsay span{font-size:11.5px;font-weight:800;color:#0f1e3d;background:rgba(255,255,255,.97);
+  border-radius:999px;padding:5px 14px;max-width:100%;text-align:center;line-height:1.25;
+  opacity:0;transition:opacity .4s ease;box-shadow:0 5px 14px rgba(6,14,32,.28)}
+.dsgsay span.show{opacity:1}
+.dsgrow{flex:1;min-height:0;width:100%;align-self:flex-start;display:grid;
+  grid-template-columns:repeat(3,1fr);gap:10px;align-items:center;padding-top:4px;
+  transition:width .55s ease,gap .55s ease}
+.dsgcard{margin:0;display:flex;flex-direction:column;align-items:center;gap:4px;
+  min-height:0;height:100%;opacity:0;transform:translateY(14px) scale(.94);
+  transition:opacity .55s ease,transform .55s cubic-bezier(.3,1.2,.5,1),filter .55s ease}
+.dsgcard.in{opacity:1;transform:none}
+.dsgcard.past{filter:grayscale(.6) brightness(.98);opacity:.55}
+.dsgart{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+.dsgart img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;
+  border-radius:6px;filter:drop-shadow(0 6px 14px rgba(10,24,48,.22))}
+.dsgcard figcaption{flex:none;text-align:center;line-height:1.2}
+.dsgcard figcaption b{display:block;font-size:11.5px;font-weight:800;color:var(--navy-2)}
+.dsgcard figcaption span{display:block;font-size:9.5px;font-weight:700;color:#7b869a}
+#dc-deako.lit .dsgart img{filter:drop-shadow(0 8px 20px rgba(27,160,221,.55))}
+/* a column down the right-hand side, level with the Deako switch */
+.dsgbul{position:absolute;right:14px;top:86px;bottom:18px;width:33%;margin:0;padding:0;
+  list-style:none;display:flex;flex-direction:column;justify-content:center;gap:7px;
+  pointer-events:none}
+.dsgbul li{position:relative;font-size:10.5px;font-weight:700;color:var(--navy-2);
+  background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:10px;
+  padding:5px 10px 5px 22px;line-height:1.3;opacity:0;transform:translateX(12px);
+  transition:opacity .4s ease,transform .4s ease}
+.dsgbul li::before{content:"";position:absolute;left:9px;top:50%;margin-top:-3px;
+  width:6px;height:6px;border-radius:50%;background:var(--blue)}
+.dsgbul li.in{opacity:1;transform:none}
+/* the two pills take opposite bottom corners, with the design story on the
+   left and the install clip on the right */
+#b1 .demorow{grid-template-columns:auto auto;justify-content:space-between;bottom:14px;gap:10px}
+#b1 #designbtn{order:-1}
+#b1.playing .demorow{opacity:0;pointer-events:none}
+#b1 .replay{z-index:22}
+#b4 .cue{font-size:10px;padding:4px 10px}
+/* -- admin --------------------------------------------------- */
+.mvbar{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:9999;
+  display:flex;align-items:center;gap:9px;padding:7px 12px;border-radius:999px;
+  background:rgba(8,18,40,.97);border:1px solid rgba(124,176,255,.45);
+  box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:11px;color:#dce7f7}
+.mvbar b{color:var(--blue);letter-spacing:.08em;text-transform:uppercase;font-size:10px}
+.mvhint{color:#93a6c4;max-width:430px}
+.mvbar button{font:inherit;font-size:10.5px;font-weight:800;cursor:pointer;
+  color:#dce7f7;background:rgba(255,255,255,.08);border:1px solid rgba(124,176,255,.4);
+  border-radius:999px;padding:4px 10px}
+.mvbar button:hover{border-color:var(--blue);color:#fff}
+.mvbar button.mvgo{background:var(--blue);border-color:var(--blue);color:#04121f}
+/* in admin every control is visible and draggable, even the ones that
+   normally only appear mid-demo - you cannot place what you cannot see */
+body.admin [data-mv]{opacity:1!important;pointer-events:auto!important;
+  cursor:grab;outline:1.5px dashed rgba(27,160,221,.9);outline-offset:2px}
+body.admin [data-mv].mvpick{outline:2px solid var(--blue);outline-offset:3px}
+body.admin [data-mv].mvdrag{cursor:grabbing}
+body.admin .demorow{opacity:1!important;pointer-events:auto!important}
+body.admin [data-mv].hidden{display:block!important}
+body.admin .chaps[data-mv].hidden{display:grid!important}
+body.admin .spd[data-mv].hidden{display:flex!important}
+/* the two captions are empty at rest, so give them something to grab */
+body.admin #ptag3:empty::before,body.admin #hud2:empty::before{content:"Caption"}
+/* shown only when a chapter was asked for and the server cannot deliver it */
+.seekwarn{position:absolute;left:16px;right:16px;bottom:52px;z-index:30;
+  font-size:11px;line-height:1.45;color:#c7d4e6;background:rgba(11,23,48,.97);
+  border:1px solid rgba(27,160,221,.45);border-radius:9px;padding:8px 12px;
+  box-shadow:0 10px 26px rgba(0,0,0,.5)}
+.seekwarn b{color:#fff}
+.seekwarn .u{color:#7fd0f5}
+footer{color:#5d6d84;font-size:9.5px;line-height:1.3;text-align:center;flex:none}
+footer b{color:#c7d4e6}
+
+/* -- placed controls ------------------------------------------------
+   Set in the admin screen and made permanent here. These are anchored to
+   each panel's top-right corner rather than carried as pixel offsets, so
+   they hold their place at any window size. A cue button and its
+   Reset/Replay share the corner - the cue hides the moment a demo starts,
+   so the two are never on screen together. `right:44px` clears the panel's
+   number badge, which owns the corner itself. */
+/* the cue button is centred at the top of its panel; Reset/Replay keep the
+   top-right corner, and the two never show at once */
+[data-mv="b2-demo"],[data-mv="b4-play"]{left:50%;right:auto;top:16px;bottom:auto;
+  transform:translateX(-50%)}
+[data-mv="b2-reset"]{right:49px;top:12px;bottom:auto}
+[data-mv="b4-replay"]{right:47px;top:14px;bottom:auto}
+[data-mv="b3-reset"]{right:44px;top:16px;bottom:auto}
+/* panel 1's Replay sits further in: the speed chips share that corner and,
+   unlike a cue button, they are on screen at the same time */
+[data-mv="b1-replay"]{right:135px;top:7px;bottom:auto}
+/* panel 4's chapter strip sits lower, close to the panel's edge */
+[data-mv="b4-chapters"]{bottom:2px}
+/* panel 2's caption keeps its own corner, nudged */
+[data-mv="b2-caption"]{translate:-1px 13px}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <header>
+    <div class="brand">
+      <div class="logo">dea<span>k</span>o</div>
+      <div class="kick">How it works, in four clicks</div>
+    </div>
+    <div class="hint"><a href="same-house.html" style="color:#8fa4c0">&larr; Start with the competition</a>
+      &nbsp;·&nbsp; Click any panel to play it &nbsp;·&nbsp; <b>built for the model home and the pitch</b></div>
+  </header>
+
+  <div class="grid">
+
+    <!-- ── 1 · WIRING ───────────────────────────────────────── -->
+    <section class="box" id="b1" tabindex="0" aria-label="Wired like a regular toggle">
+      <div class="num">1</div>
+      <div class="cap">
+        <div class="eyebrow">For the builder</div>
+        <h2>Wired like any other toggle</h2>
+      </div>
+      <div class="canvas">
+        <div class="still" id="st1">
+          <img src="media/connector-still.jpg" alt="Junction box, Deako connector, Simple Switch and screwless faceplate">
+        </div>
+        <div class="design" id="dsg1">
+          <div class="dsghead">Deako is a better looking switch</div>
+          <div class="dsgsay"><span id="dsgsaytx"></span></div>
+          <div class="dsgrow">
+            <figure class="dsgcard" id="dc-toggle">
+              <div class="dsgart"><img src="media/sw-toggle.png" alt="Classic toggle switch"></div>
+              <figcaption><b>Toggle</b><span>1920s</span></figcaption>
+            </figure>
+            <figure class="dsgcard" id="dc-deco">
+              <div class="dsgart"><img src="media/sw-decorator.png" alt="Decorator rocker switch"></div>
+              <figcaption><b>Decorator</b><span>1970s</span></figcaption>
+            </figure>
+            <figure class="dsgcard" id="dc-deako">
+              <div class="dsgart"><img src="media/sw-deako.png" alt="Deako switch"></div>
+              <figcaption><b>Deako</b><span>Today</span></figcaption>
+            </figure>
+          </div>
+          <ul class="dsgbul" id="dsgbul">
+            <li>Snap-on screwless faceplate</li>
+            <li>Clean, minimalist design</li>
+            <li>Perfectly level and aligned, side by side</li>
+            <li>Patented modular design &mdash; swap the face, no electrician</li>
+          </ul>
+        </div>
+        <div class="packroom" id="pr1"><img src="media/room-kitchen.jpg" alt=""><div class="pdark"></div><div class="plabel">Kitchen</div><div class="pmsg"></div></div>
+      </div>
+      <!-- the player sits on the tile itself, so a clip owns the whole panel -->
+      <div class="vidwrap hidden" id="v1wrap">
+        <video id="v1" playsinline preload="metadata" src="video/wiring.mp4"></video>
+      </div>
+      <div class="ytwrap hidden" id="yt1"><div id="yt1p"></div></div>
+      <div class="spd hidden" id="sp1" data-mv="b1-speed">
+        <div class="spdrow">
+          <button data-r="1">1&times;</button><button data-r="4">4&times;</button><button data-r="8" class="now">8&times;</button>
+        </div>
+      </div>
+      <div class="missing hidden" id="v1file">
+        <div class="mi">
+          <div class="mt">YouTube can't start from a file:// page</div>
+          <div class="mn">Its player needs a real web origin, and a double-clicked file has none.
+            Close this and open <span class="u">Open Deako Pitch.bat</span> in the
+            <span class="u">deako-dashboards</span> folder instead &mdash; it starts the local server
+            and opens this page correctly. Panels 2, 3 and 4 work either way; only this one needs it.</div>
+        </div>
+      </div>
+      <div class="demorow" id="demorow1">
+        <button class="cue cuebtn" id="cuebtn1" data-mv="b1-install"><span class="dot"></span>Click to see install vs. toggle</button>
+        <button class="cue cuebtn" id="designbtn" data-mv="b1-design"><span class="dot"></span>Click for the switch design story</button>
+      </div>
+      <button class="replay" data-replay="b1" data-mv="b1-replay">Replay</button>
+    </section>
+
+
+    <!-- ── 2 · SIMPLE OPTIONS ───────────────────────────────── -->
+    <section class="box" id="b2" tabindex="0" aria-label="Simple options">
+      <div class="num">2</div>
+      <div class="cap">
+        <div class="eyebrow">For the Homebuyer</div>
+        <h2>Keep it simple</h2>
+      </div>
+      <div class="canvas">
+        <!-- the room is where this panel lives; the gif is the detour -->
+        <div class="room" id="room2">
+          <img src="media/living-room.jpg" alt="A living room lit by two lamps">
+          <div class="rdark" id="dark2"></div>
+          <div class="plabel">Living room</div>
+          <!-- same intrinsic size as the photo, so cover-fits it pixel for pixel -->
+          <img class="candle" id="candle2" src="media/candle-glow.png" alt="">
+          <div class="fanrig" id="fan2" aria-hidden="true">
+            <div class="rod"></div>
+            <div class="canopy"></div>
+            <div class="fanhub">
+              <div class="blades" id="blades2">
+                <i style="transform:rotate(0deg)"></i><i style="transform:rotate(72deg)"></i>
+                <i style="transform:rotate(144deg)"></i><i style="transform:rotate(216deg)"></i>
+                <i style="transform:rotate(288deg)"></i>
+              </div>
+              <div class="motor"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- step 1: the module coming out and going back in -->
+        <img id="g2" class="gifplay hidden" alt="A Deako module coming out and going back in">
+
+        <!-- resting state: the range, flanking the swap -->
+        <div class="menu2" id="menu2"><div class="mcol l"></div><div class="mcol r"></div></div>
+
+        <!-- step 2: the plates on the wall either side of the couch -->
+        <div class="walls hidden" id="walls2">
+          <div class="gangwrap" id="gw4"><img src="media/gang4.png" alt="Deako 4-gang plate"></div>
+          <div class="gangwrap" id="gw2"><img src="media/gang2.png" alt="Deako 2-gang plate"></div>
+        </div>
+
+        <div class="plate2 hidden" id="plate2" role="button" tabindex="0">
+          <div class="valbub" id="val2"></div>
+          <div class="modwrap">
+            <img id="mod2" alt="">
+            <div class="nlbar" id="nl2"></div>
+            <div class="dknob hidden" id="dk2"></div>
+            <div class="hand" id="hand2" aria-hidden="true"><span class="h-open">👋</span><span class="h-point">👉</span></div>
+          </div>
+        </div>
+        <div class="hud hidden" id="hud2" data-mv="b2-caption"></div>
+        <div class="pmsg" id="pmsg2"></div>
+      </div>
+      <button class="cue cuebtn" id="cuebtn2" data-mv="b2-demo"><span class="dot"></span><span id="cue2">Click for Demo</span></button>
+      <button class="replay" data-replay="b2" data-mv="b2-reset">Reset</button>
+    </section>
+
+    <!-- ── 3 · SMART + VOICE ────────────────────────────────── -->
+    <section class="box" id="b3" tabindex="0" aria-label="Smart upgrade and voice">
+      <div class="num">3</div>
+      <div class="cap">
+        <div class="eyebrow">Whenever they're ready</div>
+        <h2>Let's make them smart</h2>
+      </div>
+      <div class="canvas">
+        <div class="smartrow" id="smart3">
+          <div class="smartcard">
+          <div class="sm"><img src="media/smart-switch.png" alt="Deako Smart Switch Gen 2"><span>Smart Switch<br>(Gen&nbsp;2)</span></div>
+          <div class="sm"><img src="media/smart-dimmer.png" alt="Deako Smart Dimmer"><span>Smart Dimmer</span></div>
+          <div class="sm"><img src="media/smart-plug.png" alt="Deako Smart Plug"><span>Smart Plug</span></div>
+          </div>
+        </div>
+        <div class="phone3" id="phone3">
+          <img src="media/app-home.png" alt="The Deako app">
+          <div class="approw" id="approw3"><b id="apgrp">Kitchen</b><span id="apstate">On</span></div>
+          <span class="apfinger" id="apfing">👆</span>
+        </div>
+        <div class="voicerow" id="voice3">
+          <div class="vd" id="vd-alexa">
+            <img src="media/echo.jpg" alt="Amazon Echo">
+            <div class="vb">&ldquo;Alexa, run <b>Good Morning</b>&rdquo;</div>
+          </div>
+          <div class="vd" id="vd-google">
+            <img src="media/ghub.jpg" alt="Google Nest Hub">
+            <div class="vb">&ldquo;Hey Google, run <b>Good Night</b>&rdquo;</div>
+          </div>
+        </div>
+        <div class="packtag" id="ptag3" data-mv="b3-caption"></div>
+        <div class="movwrap" id="mov3w">
+          <video class="movbg" id="mov3b" src="media/netflix.mp4" muted playsinline></video>
+          <video class="movfg" id="mov3" src="media/netflix.mp4" playsinline></video>
+        </div>
+        <video class="extclip" id="ext3" src="media/exterior-dusk.mp4" muted loop playsinline></video>
+        <div class="packroom" id="pr3"><img src="media/room-media.jpg" alt=""><div class="pdark"></div><img class="tvglow" id="tv3" src="media/media-tv-on.png" alt=""><div class="plabel">Media room</div><div class="pmsg"></div></div>
+      </div>
+      <div class="demorow" id="demorow3">
+        <button class="cue cuebtn" id="cuebtn3" data-mv="b3-packs"><span class="dot"></span><span id="cue3">Click for 5, 10 and 25 pack demos</span></button>
+        <button class="cue cuebtn" id="schedbtn" data-mv="b3-schedule"><span class="dot"></span>Click for Schedule demo</button>
+        <button class="cue cuebtn" id="vacbtn" data-mv="b3-vacation"><span class="dot"></span>Click for Vacation demo</button>
+        <button class="cue cuebtn" id="moviebtn" data-mv="b3-movie"><span class="dot"></span>Click for Movie night demo</button>
+      </div>
+      <button class="replay" data-replay="b3" data-mv="b3-reset">Reset</button>
+    </section>
+
+    <!-- ── 4 · INTELLIGENCE ─────────────────────────────────── -->
+    <section class="box" id="b4" tabindex="0" aria-label="Deako Intelligence">
+      <div class="num">4</div>
+      <div class="cap">
+        <div class="eyebrow">Smart Ready and Future Proof</div>
+        <h2>Deako Intelligence</h2>
+      </div>
+      <div class="canvas">
+        <div class="tiles" id="st4">
+          <div class="tile" data-t="0"><img src="media/intel-adaptive.jpg" alt="Adaptive lighting"><div class="tl">Adaptive lighting</div></div>
+          <div class="tile" data-t="19.21"><img src="media/intel-sound.jpg" alt="Follow-me sound"><div class="tl">Follow-me sound</div></div>
+          <div class="tile" data-t="44.09"><img src="media/intel-intercom.jpg" alt="Intercom"><div class="tl">Intercom</div></div>
+          <div class="tile" data-t="90.64"><img src="media/intel-parent.jpg" alt="Parent care"><div class="tl">Parent care</div></div>
+        </div>
+        <div class="chaps hidden" id="ch4" data-mv="b4-chapters">
+          <button data-t="0">Adaptive lighting</button><button data-t="19.21">Follow-me sound</button>
+          <button data-t="44.09">Intercom</button><button data-t="90.64">Parent care</button>
+        </div>
+        <div class="play" id="p4"></div>
+        <div class="packroom" id="pr4"><img src="media/room-bedroom.jpg" alt=""><div class="pdark"></div><div class="plabel">Primary bedroom</div><div class="pmsg"></div></div>
+
+        <div class="vidwrap hidden" id="v4wrap">
+          <video id="v4" playsinline preload="metadata">
+            <source src="video/intelligence-web.mp4" type="video/mp4">
+            <source src="video/intelligence.mp4" type="video/mp4">
+          </video>
+        </div>
+        <div class="missing hidden" id="v4miss">
+          <div class="mi">
+            <div class="mt">Slide 2 doesn't contain the video</div>
+            <code>public/pitch/video/intelligence.mp4</code>
+            <div class="mn">In <b>Copy of DRH Trade Show 2026.pptx</b> that slide holds a <b>link</b>, not an
+              embedded file — which is why "Save Media as…" never appeared. It points at
+              <span class="u">drive.google.com/file/d/1Qw_nB8ffeb7uET76eChKjhZflwU1tt2T</span> —
+              download it from Drive and drop it in at the path above.</div>
+          </div>
+        </div>
+      </div>
+      <div class="seekwarn hidden" id="seekwarn">
+        <b>This server can't jump to a chapter.</b> It is answering without byte ranges, so the
+        video can only play from the start. Close the black server window and reopen the page
+        with <span class="u">Open Deako Pitch.bat</span>.
+      </div>
+      <div class="cue" id="cue4" data-mv="b4-play"><span class="dot"></span>Click to play</div>
+      <button class="replay" data-replay="b4" data-mv="b4-replay">Replay</button>
+    </section>
+
+  </div>
+
+  <div class="mvbar hidden" id="mvbar">
+  <b>Admin</b>
+  <span class="mvhint" id="mvhint">Drag any control. Arrow keys nudge, Shift+arrow moves by 10.</span>
+  <button id="mvhere">Reset this one</button>
+  <button id="mvall">Reset all</button>
+  <button id="mvcss">Copy CSS</button>
+  <button id="mvdone" class="mvgo">Done</button>
+</div>
+<footer>Build <b>2026-09-14 00:31</b> — if this is older than your last change, hard-reload with Ctrl+F5.</footer>
+</div>
+
+<script>
+/* Real SKU names and art, straight off the Deako Specialty Switches sheet.
+   `act` is what the module does once it is seated; the two timer SKUs are
+   shown for completeness and are deliberately not interactive. */
+const SIMPLE = [
+  {k:'simple-motion',     n:'Simple Motion Sensor', act:'motion', gang:4, val:'Energy efficiency'},
+  {k:'simple-dimmer',     n:'Simple Dimmer',        act:'dimmer', gang:4, val:'Ambiance', body:'simple-dimmer-body'},
+  {k:'simple-nightlight', n:'Simple Night Light',   act:'night',  gang:4, val:'Convenience'},
+  {k:'simple-fan',        n:'Simple Ceiling Fan',   act:'fan',    gang:4, val:'Convenience'},
+  {k:'simple-timer',      n:'Simple Timer',         act:'basic',  gang:2, val:'Energy efficiency'},
+  {k:'simple-astro',      n:'Simple Astro Timer',   act:'basic',  gang:2, val:'Energy efficiency'}
+];
+
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+/* ── admin · drag the controls where you want them ─────────────────
+   Offsets ride on the standalone `translate` property, which composes
+   with any `transform` a control already uses for centring. They are
+   kept in this browser; "Copy CSS" hands them back to be made permanent. */
+const MVKEY = 'deako-pitch-controls-v3';
+let MV = {}, mvPick = null;
+function mvLoad(){
+  try { MV = JSON.parse(localStorage.getItem(MVKEY) || '{}') || {}; } catch (e){ MV = {}; }
+}
+function mvSave(){
+  try { localStorage.setItem(MVKEY, JSON.stringify(MV)); } catch (e){}
+}
+function mvApply(){
+  document.querySelectorAll('[data-mv]').forEach(el => {
+    const p = MV[el.dataset.mv];
+    el.style.translate = p ? p[0] + 'px ' + p[1] + 'px' : '';
+  });
+}
+function mvSet(el, dx, dy){
+  MV[el.dataset.mv] = [Math.round(dx), Math.round(dy)];
+  el.style.translate = Math.round(dx) + 'px ' + Math.round(dy) + 'px';
+  mvHint();
+}
+function mvOf(el){ return MV[el.dataset.mv] || [0,0]; }
+function mvHint(){
+  const h = $('mvhint');
+  if (!mvPick){ h.textContent = 'Drag any control. Arrow keys nudge, Shift+arrow moves by 10.'; return; }
+  const p = mvOf(mvPick);
+  h.textContent = mvPick.dataset.mv + '  ' + (p[0] >= 0 ? '+' : '') + p[0] +
+                  ', ' + (p[1] >= 0 ? '+' : '') + p[1];
+}
+function mvSelect(el){
+  if (mvPick) mvPick.classList.remove('mvpick');
+  mvPick = el;
+  if (el) el.classList.add('mvpick');
+  mvHint();
+}
+function adminOn(){ return document.body.classList.contains('admin'); }
+function admin(on){
+  document.body.classList.toggle('admin', !!on);
+  $('mvbar').classList.toggle('hidden', !on);
+  if (!on) mvSelect(null);
+}
+
+let mvDrag = null;
+document.addEventListener('pointerdown', e => {
+  if (!adminOn() || e.target.closest('#mvbar')) return;
+  const el = e.target.closest('[data-mv]');
+  if (!el) return;
+  e.preventDefault(); e.stopPropagation();
+  const p = mvOf(el);
+  mvDrag = {el, x:e.clientX, y:e.clientY, dx:p[0], dy:p[1]};
+  el.classList.add('mvdrag');
+  try { el.setPointerCapture(e.pointerId); } catch (err){}
+  mvSelect(el);
+}, true);
+document.addEventListener('pointermove', e => {
+  if (!mvDrag) return;
+  mvSet(mvDrag.el, mvDrag.dx + (e.clientX - mvDrag.x), mvDrag.dy + (e.clientY - mvDrag.y));
+}, true);
+document.addEventListener('pointerup', e => {
+  if (!mvDrag) return;
+  mvDrag.el.classList.remove('mvdrag');
+  mvDrag = null; mvSave();
+}, true);
+/* in admin a click places things - it never starts a demo */
+document.addEventListener('click', e => {
+  if (adminOn() && !e.target.closest('#mvbar')){ e.preventDefault(); e.stopPropagation(); }
+}, true);
+
+const NUDGE = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')){
+    e.preventDefault(); admin(!adminOn()); return;
+  }
+  if (!adminOn()) return;
+  if (e.key === 'Escape'){ admin(false); return; }
+  const n = NUDGE[e.key];
+  if (!n || !mvPick) return;
+  e.preventDefault();
+  const step = e.shiftKey ? 10 : 1, p = mvOf(mvPick);
+  mvSet(mvPick, p[0] + n[0] * step, p[1] + n[1] * step);
+  mvSave();
+});
+
+function mvCSS(){
+  const rules = Object.keys(MV).filter(k => MV[k][0] || MV[k][1])
+    .map(k => '[data-mv="' + k + '"]{translate:' + MV[k][0] + 'px ' + MV[k][1] + 'px}');
+  return rules.length ? rules.join('\n') : '/* every control is in its default place */';
+}
+function mvFlash(msg){ $('mvhint').textContent = msg; setTimeout(mvHint, 1800); }
+
+mvLoad();
+document.addEventListener('DOMContentLoaded', mvApply);
+if (/[?&]admin=1/.test(location.search)) document.addEventListener('DOMContentLoaded', () => admin(true));
+
+
+const step = (el, t) => { el.textContent = t; el.classList.add('show'); };
+
+/* ── video panels ──────────────────────────────────────────── */
+function armVideo(boxId, vidId, wrapId, missId, stillId){
+  const box=$(boxId), v=$(vidId), wrap=$(wrapId), still=$(stillId);
+  const miss = missId ? $(missId) : null;
+  let broken = false;
+  v.addEventListener('error', () => { broken = true; });
+  v.addEventListener('ended', () => box.classList.remove('playing'));
+  return {
+    play(at){
+      box.classList.add('playing');
+      if (broken){ if (miss) miss.classList.remove('hidden'); return; }
+      wrap.classList.remove('hidden'); still.style.opacity = 0;
+      // seek first, then start - setting currentTime after play() lets the
+      // element run from zero while the seek is still resolving
+      const to = at || 0;
+      const go = () => { if (Math.abs(v.currentTime - to) > 0.25) v.currentTime = to;
+                         v.play().catch(()=>{}); };
+      if (v.readyState >= 1) go(); else v.addEventListener('loadedmetadata', go, {once:true});
+    },
+    reset(){
+      box.classList.remove('playing');
+      v.pause(); v.currentTime = 0;
+      wrap.classList.add('hidden'); if (miss) miss.classList.add('hidden'); still.style.opacity = 1;
+    }
+  };
+}
+const P1 = armVideo('b1','v1','v1wrap',null,'st1',null);
+$('v1').addEventListener('ended', () => reset1());
+const P4 = armVideo('b4','v4','v4wrap','v4miss','st4');
+
+/* Panel 1 · plays video/wiring.mp4 when that file is present — offline, no network —
+   and otherwise embeds the YouTube cut in the panel. Installation footage is dull at 1x,
+   The clip runs 1:44, so 8x brings it in around 13 seconds. A local <video>
+   honours 8x exactly; YouTube's player tops out at 2x, so on the embed we clamp
+   to that and label it rather than pretending. */
+const YT1 = 'eZeQOOJrv3o';
+let want1 = 8, ytp = null;
+const sp1 = $('sp1');
+
+function paintSpeed(applied){
+  [...sp1.querySelectorAll('button')].forEach(b => {
+    const r = +b.dataset.r;
+    b.classList.toggle('now', r === want1);
+    b.classList.toggle('capped', r > applied);
+  });
+  let n = sp1.querySelector('.note');
+  if (applied < want1){
+    if (!n){ n = document.createElement('span'); n.className = 'note'; sp1.appendChild(n); }
+    n.textContent = 'YouTube caps at ' + applied + '×';
+  } else if (n) n.remove();
+}
+function applyRate(){
+  if (ytp && ytp.setPlaybackRate){
+    const avail = (ytp.getAvailablePlaybackRates && ytp.getAvailablePlaybackRates()) || [1];
+    const ok = avail.filter(r => r <= want1);
+    const r = ok.length ? Math.max.apply(null, ok) : 1;
+    ytp.setPlaybackRate(r); paintSpeed(r);
+  } else {
+    const v = $('v1'); v.playbackRate = want1; paintSpeed(want1);
+  }
+}
+function loadYT(cb){
+  if (window.YT && window.YT.Player){ apiState = 'already loaded'; return cb(); }
+  apiState = 'loading';
+  const prev = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = () => { if (prev) prev(); cb(); };
+  if (!document.getElementById('ytapi')){
+    const t = document.createElement('script');
+    t.id = 'ytapi'; t.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(t);
+  }
+}
+/* Panel 1 has failed quietly more than once, so it now reports its own
+   state. diag() is what shows in the fallback panel; if this ever misbehaves
+   again the screen says why rather than leaving us guessing. */
+let apiState = 'not requested', playerState = 'none', lastErr = '';
+function diag(){
+  const v = $('v1');
+  return 'page ' + location.protocol + '//' + (location.host || '(none)') +
+         ' · local mp4 ' + (v.error ? 'missing' : (v.readyState >= 1 ? 'ready' : 'pending')) +
+         ' · api ' + apiState + ' · player ' + playerState +
+         (lastErr ? ' · ' + lastErr : '');
+}
+function showFallback(headline, body){
+  $('yt1').classList.add('hidden');
+  const m = $('v1file');
+  m.querySelector('.mt').textContent = headline;
+  m.querySelector('.mn').innerHTML = body +
+    '<div class="diag">' + diag() + '</div>' +
+    '<a class="ytlink" href="https://youtu.be/' + YT1 + '" target="_blank" rel="noopener">' +
+    'Open it on YouTube ↗</a>';
+  m.classList.remove('hidden');
+}
+function play1(){
+  $('b1').classList.add('playing');
+  sp1.classList.remove('hidden');
+  const v = $('v1');
+  if (v.readyState >= 1 && !v.error){       // local cut wins when it exists
+    P1.play(); v.playbackRate = want1; paintSpeed(want1); return;
+  }
+  $('st1').style.opacity = 0;
+  if (location.protocol === 'file:'){
+    showFallback('This page is open from disk, so YouTube will not start',
+      'Its player needs a real web origin, and a double-clicked file has none. ' +
+      'Close this and open <span class="u">Open Deako Pitch.bat</span> in the ' +
+      '<span class="u">deako-dashboards</span> folder instead — it starts the local server ' +
+      'and opens this page correctly. Panels 2, 3 and 4 work either way; only this one needs it.');
+    return;
+  }
+  const w = $('yt1');
+  w.classList.remove('hidden');
+  if (ytp && ytp.playVideo){
+    try { ytp.seekTo(0); applyRate(); ytp.playVideo(); return; } catch (err){ ytp = null; }
+  }
+  playerState = 'iframe inserted';
+  w.innerHTML = '<iframe id="yt1f" src="https://www.youtube-nocookie.com/embed/' + YT1 +
+    '?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=' +
+    encodeURIComponent(location.origin) + '" title="Deako Switch vs Standard Rocker Switch" ' +
+    'allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
+  const fr = $('yt1f');
+  fr.addEventListener('load', () => { playerState = 'iframe loaded'; });
+  fr.addEventListener('error', () => {
+    lastErr = 'iframe blocked';
+    showFallback("The video frame was blocked", 'Something between this page and YouTube refused the frame — ' +
+      'commonly an ad blocker, a privacy extension, or a network policy.');
+  });
+  paintSpeed(1);
+  loadYT(() => {                            // rate control only; playback never waits on it
+    apiState = 'loaded';
+    try {
+      ytp = new YT.Player('yt1f', {
+        events: {
+          onReady: () => { playerState = 'player ready'; applyRate(); },
+          onStateChange: e => { if (e && e.data === 0) reset1(); },   // 0 = ended
+          onError: e => { lastErr = 'yt error ' + (e && e.data);
+            showFallback("YouTube refused to play this clip here",
+              'The player loaded but rejected playback — error code ' + (e && e.data) + '.'); }
+        }
+      });
+    } catch (err){ apiState = 'adopt failed'; }
+  });
+}
+function reset1(){
+  P1.reset();
+  designRest();
+  if (ytp && ytp.destroy){ try { ytp.destroy(); } catch (err){} }
+  ytp = null; playerState = 'none'; lastErr = '';
+  const w = $('yt1');
+  w.classList.add('hidden');
+  w.innerHTML = '';
+  $('v1file').classList.add('hidden');
+  sp1.classList.add('hidden');
+}
+/* Slide 8 of the intro deck, told one switch at a time. */
+let gen1 = 0;
+const DSGCARDS = ['dc-toggle','dc-deco','dc-deako'];
+function say1(html){
+  const el = $('dsgsaytx');
+  if (html) el.innerHTML = html;
+  el.classList.toggle('show', !!html);
+}
+function designRest(){
+  gen1++;
+  $('dsg1').classList.remove('show','bul');
+  DSGCARDS.forEach(i => $(i).classList.remove('in','past','lit'));
+  [...$('dsgbul').children].forEach(li => li.classList.remove('in'));
+  say1('');
+}
+async function designDemo(){
+  const mine = ++gen1;
+  const on = () => mine === gen1;
+  const hold = async ms => { await wait(ms); return on(); };
+  stopOthers('b1');
+  $('b1').classList.add('playing');
+  $('dsg1').classList.remove('bul');
+  DSGCARDS.forEach(i => $(i).classList.remove('in','past','lit'));
+  [...$('dsgbul').children].forEach(li => li.classList.remove('in'));
+  say1('');
+  $('dsg1').classList.add('show');
+  if (!await hold(600)) return;
+
+  $('dc-toggle').classList.add('in');
+  say1('The <b>toggle</b> &mdash; a cheap, dated switch, essentially unchanged since the <b>1920s</b>');
+  if (!await hold(3800)) return;
+
+  $('dc-toggle').classList.add('past');
+  $('dc-deco').classList.add('in');
+  say1('The <b>decorator</b> &mdash; an upgrade, but it has not changed since the <b>1970s</b>');
+  if (!await hold(3800)) return;
+
+  $('dc-deco').classList.add('past');
+  $('dc-deako').classList.add('in','lit');
+  say1('<b>Deako</b> &mdash; modern design, and the only one built to change');
+  if (!await hold(1500)) return;
+
+  // the three draw together to the left and Deako's points come in beside it
+  $('dsg1').classList.add('bul');
+  if (!await hold(800)) return;
+  for (const li of [...$('dsgbul').children]){
+    li.classList.add('in');
+    if (!await hold(1450)) return;
+  }
+  if (!await hold(2800)) return;
+
+  // and then it settles back to the three switches, centred, for the room
+  [...$('dsgbul').children].forEach(li => li.classList.remove('in'));
+  if (!await hold(650)) return;
+  $('dsg1').classList.remove('bul');
+  $('dc-toggle').classList.remove('past');
+  $('dc-deco').classList.remove('past');
+  say1('Toggle, decorator, Deako &mdash; a hundred years apart');
+  // it stays here until Reset, the way panel 2 stays on its room
+}
+$('mvdone').addEventListener('click', () => admin(false));
+$('mvhere').addEventListener('click', () => {
+  if (!mvPick){ mvFlash('Pick a control first.'); return; }
+  delete MV[mvPick.dataset.mv]; mvPick.style.translate = ''; mvSave(); mvHint();
+});
+$('mvall').addEventListener('click', () => {
+  MV = {}; mvSave(); mvApply(); mvFlash('Every control is back where it started.');
+});
+$('mvcss').addEventListener('click', () => {
+  const css = mvCSS();
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(css).then(() => mvFlash('CSS copied - paste it to me to make it permanent.'),
+                                            () => mvFlash(css));
+  } else mvFlash(css);
+});
+
+$('designbtn').addEventListener('click', e => { e.stopPropagation(); designDemo(); });
+
+$('cuebtn1').addEventListener('click', e => { e.stopPropagation(); start('b1'); });
+[...sp1.querySelectorAll('button')].forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation(); want1 = +b.dataset.r; applyRate();
+}));
+
+/* Panel 4 · the reel runs Adaptive 0:00 · Follow-me 0:19.21 · Intercom 0:44.09
+   · Parent care 1:30.64. Each mark is the start of that section's title card.
+   Both the stills and the strip under the player jump straight to a chapter. */
+const CH4 = [0,19.21,44.09,90.64];
+const v4 = $('v4'), ch4 = $('ch4');
+function markChapter(){
+  const t = v4.currentTime, i = CH4.filter(c => c <= t + .25).length - 1;
+  [...ch4.children].forEach((b,k) => b.classList.toggle('now', k === i));
+}
+v4.addEventListener('timeupdate', markChapter);
+/* Seeking needs the server to answer a Range request with 206. Python's
+   built-in http.server does not, and the only symptom is that every chapter
+   button looks like it restarts the reel - so ask once, and say so plainly
+   rather than leaving it looking broken. */
+let noSeek = false, warnT = null;
+try {
+  fetch('video/intelligence-web.mp4', {headers: {Range: 'bytes=0-1'}})
+    .then(r => { noSeek = r.status !== 206; })
+    .catch(() => {});
+} catch (e){}
+function warnSeek(){
+  const w = $('seekwarn');
+  w.classList.remove('hidden');
+  clearTimeout(warnT);
+  warnT = setTimeout(() => w.classList.add('hidden'), 9000);
+}
+function play4(at){
+  P4.play(at);
+  if (v4.error) return;
+  ch4.classList.remove('hidden');
+  if (at && noSeek) warnSeek();
+  markChapter();
+}
+[...$('st4').children].forEach(t => t.addEventListener('click', e => {
+  e.stopPropagation(); stopOthers('b4'); play4(+t.dataset.t);
+}));
+[...ch4.children].forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation(); stopOthers('b4'); play4(+b.dataset.t);
+}));
+
+/* ── panel 2 · room, then the swap, then the room wired up ──────────
+   step 0  the living room, at rest
+   step 1  the module coming out and going back in
+   step 2  the same room with the plates on the wall, everything live
+   Each click moves one step on; the third returns to the room.          */
+const GIF = 'media/wall-inout.gif';
+let step2 = 0, sel2 = null, lvl2 = 0, fanSpd = 0,
+    motionT = null, motionTick = null, dragging = false;
+
+/* module bands within each composited plate, as a share of its width */
+const BAND = {gw4: [[7.9,29.1],[29.1,50.3],[50.3,71.6],[71.6,92.8]],
+              gw2: [[13.6,50.4],[50.4,87.2]]};
+
+function buildRails(){
+  const put = (host, list) => {
+    [...host.querySelectorAll('.hot')].forEach(n => n.remove());
+    list.forEach(([m, lo, hi]) => {
+      const h = document.createElement('div');
+      h.className = 'hot';
+      h.dataset.k = m.k;
+      h.style.left = lo + '%';
+      h.style.width = (hi - lo) + '%';
+      h.tabIndex = 0;
+      h.title = m.n;
+      h.addEventListener('click', e => { e.stopPropagation(); choose(m); });
+      h.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); e.stopPropagation(); choose(m); }
+      });
+      host.appendChild(h);
+    });
+  };
+  const four = SIMPLE.filter(m => m.gang === 4), two = SIMPLE.filter(m => m.gang === 2);
+  put($('gw4'), four.map((m, i) => [m, BAND.gw4[i][0], BAND.gw4[i][1]]));
+  put($('gw2'), two.map((m, i) => [m, BAND.gw2[i][0], BAND.gw2[i][1]]));
+}
+buildRails();
+
+function buildMenu(){
+  const cols = [...document.querySelectorAll('#menu2 .mcol')];
+  cols.forEach(c => c.innerHTML = '');
+  SIMPLE.forEach((m, i) => {
+    const el = document.createElement('div');
+    el.className = 'mitem';
+    el.tabIndex = 0;
+    el.title = m.n;
+    el.innerHTML = '<img src="media/' + m.k + '.png" alt="' + m.n + '">' +
+                   '<span class="mn">' + m.n + '</span>';
+    // picking one here opens the room with that module already out
+    el.addEventListener('click', e => { e.stopPropagation(); choose(m); });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); e.stopPropagation(); choose(m); }
+    });
+    cols[i < 3 ? 0 : 1].appendChild(el);
+  });
+}
+buildMenu();
+
+const slots = () => [...document.querySelectorAll('#gw4 .hot, #gw2 .hot')];
+const hud = t => { const h = $('hud2'); h.innerHTML = t; h.classList.remove('hidden'); };
+const cue = t => { $('cue2').textContent = t; };
+
+const FAN_NAMES = ['off','slow','medium','fast'];
+function paintRoom(){
+  const on = lvl2 > 0;
+  $('dark2').style.opacity = (0.72 - 0.68 * (lvl2 / 100)).toFixed(3);
+  $('room2').querySelector('img').style.filter =
+    'brightness(' + (0.42 + 0.58 * (lvl2 / 100)).toFixed(3) + ')';
+  // whatever the switches do, the candle keeps its own light
+  const cd = $('candle2');
+  cd.style.opacity = (1 - lvl2 / 100).toFixed(3);
+  const lit = !!sel2 && sel2.act === 'night' && !on;
+  $('nl2').classList.toggle('glow', lit);
+  $('mod2').classList.toggle('dusk', lit);
+  $('plate2').classList.toggle('dusk', lit);
+  const f = $('fan2');
+  f.classList.toggle('show', fanSpd > 0);
+  f.classList.toggle('spin', fanSpd > 0);
+  f.classList.toggle('s2', fanSpd === 2);
+  f.classList.toggle('s3', fanSpd === 3);
+  $('dk2').style.top = (63.7 - 0.391 * lvl2).toFixed(2) + '%';
+}
+function setLvl(v, why){
+  lvl2 = Math.max(0, Math.min(100, Math.round(v)));
+  paintRoom();
+  if (why) hud(why);
+}
+
+/* ── the three steps ─────────────────────────────────────────────── */
+function show2(n){
+  demoGen++;                        // any running walk-through stops here
+  step2 = n;
+  const box = $('b2');
+  box.classList.toggle('playing', n === 1);
+  box.classList.toggle('live', n === 1);
+  $('room2').classList.toggle('show', n === 1);
+  $('g2').classList.toggle('show', n === 0);
+  $('walls2').classList.toggle('hidden', n !== 1);
+  $('walls2').classList.toggle('show', n === 1);
+  $('hud2').classList.remove('wide');
+  $('menu2').classList.toggle('hidden', n !== 0);
+  clearSel();
+  if (n === 0){                     // resting state: the swap, on a loop
+    $('g2').classList.remove('hidden');
+    $('g2').src = GIF + '?t=' + Date.now();     // re-request so it restarts
+    lvl2 = 0;
+    cue('Click for Demo');
+    hud('Easily remove and swap with no electrician, tools or wires');
+    $('hud2').classList.add('wide');
+  } else {                          // the room, wired, ready to be played with
+    $('g2').classList.add('hidden'); $('g2').removeAttribute('src');
+    lvl2 = 70; paintRoom();
+    cue('Click here to demo all, or pick a switch off the wall');
+    $('hud2').classList.add('hidden');
+  }
+}
+function advance2(){ show2(step2 === 0 ? 1 : 0); }
+
+/* A hands-off walk through the four working modules. Every wait re-checks
+   that this run is still the current one, so a click anywhere stops it
+   cleanly rather than fighting whatever the viewer just did. */
+let demoGen = 0;
+const hand2 = () => $('hand2');
+function handShow(on){ hand2().classList.toggle('show', !!on); }
+function handWave(on){
+  handShow(on);
+  hand2().classList.toggle('wave', !!on);
+  hand2().classList.remove('pointing');     // an open palm waves
+}
+async function handTap(){
+  const h = hand2();
+  handShow(true);
+  h.classList.add('pointing');              // close to an index finger to press
+  h.classList.remove('tap');
+  void h.offsetWidth;                      // restart the animation
+  h.classList.add('tap');
+  await wait(330);                         // land the press before the room reacts
+}
+function handAt(pctTop){ hand2().style.top = pctTop + '%'; }
+
+/* A hands-off walk through the five demonstrable modules. Every wait
+   re-checks that this run is still current, so a click anywhere stops it
+   cleanly rather than fighting whatever the viewer just did. */
+async function demoAll(){
+  const mine = ++demoGen;
+  const on = () => mine === demoGen && step2 === 1;
+  const hold = async ms => { await wait(ms); return on(); };
+  const pick = k => SIMPLE.find(m => m.k === k);
+
+  cue('Running the demo…');
+
+  /* motion — a hand waves in front of the sensor */
+  choose(pick('simple-motion'), true);
+  if (!await hold(1300)) return;
+  handAt(26); handWave(true);
+  hud('<b>Simple Motion</b> — wave in front of it');
+  if (!await hold(1500)) return;
+  setLvl(100, 'Motion detected · <b>lights on</b>');
+  if (!await hold(1900)) return;
+  handWave(false);
+  for (let t = 5; t >= 1; t--){
+    hud('No motion · lights out in <b>' + t + 's</b>');
+    if (!await hold(520)) return;
+  }
+  setLvl(0, 'No motion · lights out');
+  handShow(false);
+  if (!await hold(1200)) return;
+
+  /* dimmer — the hand rides the knob up and down */
+  choose(pick('simple-dimmer'), true);
+  if (!await hold(1300)) return;
+  hud('<b>Simple Dimmer</b> — slide up to brighten, down to dim');
+  hand2().classList.add('pointing');
+  handShow(true);
+  if (!await hold(900)) return;
+  for (const v of [100, 78, 52, 22, 8, 40, 70]){
+    handAt(58 - 0.34 * v);                 // follow the knob down the track
+    setLvl(v, 'Dimmer · <b>' + v + '%</b>');
+    if (!await hold(680)) return;
+  }
+  handShow(false);
+  if (!await hold(700)) return;
+
+  /* night light — press it off and let the lens carry the room */
+  choose(pick('simple-nightlight'), true);
+  if (!await hold(1300)) return;
+  hud('<b>Simple Night Light</b> — press it off');
+  handAt(30);
+  if (!await hold(800)) return;
+  await handTap();
+  if (!on()) return;
+  setLvl(0, 'Lights off · <b>the night light takes over</b>');
+  handShow(false);
+  if (!await hold(2600)) return;
+
+  /* timer — ten minutes in a few seconds, then out */
+  choose(pick('simple-timer'), true);
+  if (!await hold(1300)) return;
+  hud('<b>Simple Timer</b> — energy saver that turns lights off automatically after set minutes');
+  handAt(30);
+  if (!await hold(2000)) return;
+  await handTap();
+  if (!on()) return;
+  setLvl(100);
+  handShow(false);
+  for (let m = 10; m >= 1; m--){
+    hud('Simple Timer · <b>' + m + ' min</b> remaining');
+    if (!await hold(430)) return;
+  }
+  setLvl(0, 'Simple Timer · <b>0 min</b> — lights off');
+  if (!await hold(1800)) return;
+
+  /* fan — three speeds, a press between each */
+  choose(pick('simple-fan'), true);
+  if (!await hold(1300)) return;
+  hud('<b>Ceiling Fan</b> — press for slow, medium, fast');
+  handAt(30);
+  if (!await hold(900)) return;
+  for (let sp = 1; sp <= 3; sp++){
+    await handTap();
+    if (!on()) return;
+    fanSpd = sp;
+    setLvl(100, 'Fan · <b>' + FAN_NAMES[sp] + '</b>');
+    if (!await hold(1700)) return;
+  }
+  await handTap();
+  if (!on()) return;
+  fanSpd = 0;
+  setLvl(100, 'Fan · <b>off</b>');
+  handShow(false);
+  if (!await hold(1100)) return;
+
+  show2(1);                                // stay on the room, wall restored
+}
+
+function clearSel(){
+  clearTimeout(motionT); clearInterval(motionTick);
+  if ($('hand2')) $('hand2').classList.remove('show', 'wave', 'tap', 'pointing');
+  sel2 = null; fanSpd = 0; dragging = false;
+  slots().forEach(o => o.classList.remove('out'));
+  $('plate2').classList.add('hidden');
+  $('val2').classList.remove('show');
+  $('plate2').classList.remove('dim-live','dusk');
+  $('mod2').classList.remove('dusk');
+  $('dk2').classList.add('hidden');
+  $('nl2').classList.remove('glow');
+  $('fan2').classList.remove('show','spin','s2','s3');
+}
+
+function choose(m, fromDemo){
+  if (!fromDemo) demoGen++;
+  stopOthers('b2');
+  if (step2 !== 1) show2(1);
+  clearTimeout(motionT); clearInterval(motionTick);
+  sel2 = m; fanSpd = 0;
+  slots().forEach(o => o.classList.toggle('out', o.dataset.k === m.k));
+  const plate = $('plate2'), img = $('mod2');
+  img.src = 'media/' + (m.body || m.k) + '.png'; img.alt = m.n;
+  $('dk2').classList.toggle('hidden', m.act !== 'dimmer');
+  plate.classList.toggle('dim-live', m.act === 'dimmer');
+  const vb = $('val2');
+  vb.textContent = m.val || '';
+  vb.classList.toggle('show', !!m.val);
+  plate.classList.remove('hidden');
+  plate.classList.add('dropping');
+  requestAnimationFrame(() => requestAnimationFrame(() => plate.classList.remove('dropping')));
+  // open in whichever state shows the module off
+  lvl2 = (m.act === 'night' || m.act === 'basic') ? 100
+       : (m.act === 'dimmer' ? 55 : 0);
+  paintRoom();
+  hud({
+    night:  '<b>Night Light</b> — turn the switch off to see the gentle glow',
+    motion: '<b>Simple Motion</b> — move in front to activate',
+    dimmer: '<b>Simple Dimmer</b> — slide up to brighten and down to dim',
+    fan:    '<b>Ceiling Fan</b> — click for slow, medium, fast, off'
+  }[m.act] || ('<b>' + m.n + '</b> — click the switch for lights off and on'));
+}
+
+/* the seated module behaves like the thing it is */
+const plate = $('plate2');
+plate.addEventListener('click', e => {
+  e.stopPropagation();
+  if (!sel2 || !sel2.act) return;
+  if (sel2.act === 'fan'){
+    fanSpd = (fanSpd + 1) % 4;
+    setLvl(fanSpd ? 100 : 0, fanSpd ? 'Fan · <b>' + FAN_NAMES[fanSpd] + '</b>' : 'Fan off');
+  } else if (sel2.act === 'motion'){
+    setLvl(lvl2 > 0 ? 0 : 100, 'Simple Motion — move in front to activate');
+  } else {
+    setLvl(lvl2 > 0 ? 0 : 100, lvl2 > 0 ? 'Lights off' : 'Lights on');
+  }
+});
+plate.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); plate.click(); }
+});
+plate.addEventListener('mouseenter', () => {
+  if (!sel2 || sel2.act !== 'motion') return;
+  clearTimeout(motionT); clearInterval(motionTick);
+  setLvl(100);
+  let left = 5;
+  hud('Motion detected · lights out in <b>' + left + 's</b>');
+  motionTick = setInterval(() => {
+    left -= 1;
+    if (left > 0) hud('Motion detected · lights out in <b>' + left + 's</b>');
+  }, 1000);
+  motionT = setTimeout(() => {
+    clearInterval(motionTick);
+    setLvl(0, 'No motion · lights out');
+  }, 5000);
+});
+plate.addEventListener('mousemove', e => {
+  if (!sel2 || sel2.act !== 'dimmer') return;
+  if (!dragging && !e.buttons) return;
+  const r = $('mod2').getBoundingClientRect();
+  setLvl(100 * (1 - (e.clientY - r.top) / r.height), 'Dimmer · <b>' + lvl2 + '%</b>');
+});
+plate.addEventListener('mousedown', e => { if (sel2 && sel2.act === 'dimmer'){ dragging = true; e.preventDefault(); } });
+window.addEventListener('mouseup', () => { dragging = false; });
+
+$('cuebtn2').addEventListener('click', e => {
+  e.stopPropagation();
+  if (step2 === 1) demoAll(); else advance2();
+});
+function run2(){ advance2(); }
+function reset2(){ show2(0); }
+show2(0);
+
+/* ── panel 3 · what a 5, 10 or 25 pack actually reaches ──────────
+   The rooms live on the other panels, so this demo reaches across the
+   page: a pack size darkens the rooms it covers, says something in the
+   dark, then puts them back. Panel 2 keeps its candle burning throughout,
+   because no switch in the house controls a candle. */
+const ROOMS = {b1:'pr1', b3:'pr3', b4:'pr4'};      // panel 2 uses its own room
+let gen3 = 0;
+
+function roomShow(box, on){
+  const el = $(ROOMS[box]);
+  if (el) el.classList.toggle('show', !!on);
+}
+/* 0 is pitch dark, 100 is fully lit; the middle is lamps only */
+function roomLevel(box, lv){
+  if (box === 'b2'){ setLvl(lv); return; }
+  const el = $(ROOMS[box]);
+  if (el) el.querySelector('.pdark').style.opacity = (0.93 - 0.0093 * lv).toFixed(3);
+}
+function roomDark(box, on){ roomLevel(box, on ? 0 : 100); }
+function roomMsg(box, text){
+  const el = box === 'b2' ? $('pmsg2') : ($(ROOMS[box]) && $(ROOMS[box]).querySelector('.pmsg'));
+  if (!el) return;
+  el.innerHTML = text || '';
+  el.classList.toggle('show', !!text);
+}
+const tag3 = t => { const e = $('ptag3'); e.innerHTML = t || ''; e.classList.toggle('show', !!t); };
+
+function panel3Rest(){
+  extShow(false);
+  movShow(false);
+  $('tv3').classList.remove('on');
+  ['b1','b3','b4'].forEach(b => { roomShow(b, false); roomDark(b, false); roomMsg(b, ''); });
+  roomMsg('b2', '');
+  $('smart3').classList.remove('back');
+  $('phone3').classList.remove('show');
+  $('apfing').classList.remove('show', 'tap');
+  $('approw3').classList.remove('off', 'scene');
+  document.body.classList.remove('packrun');
+  $('voice3').classList.remove('show');
+  $('vd-alexa').classList.remove('up');
+  $('vd-google').classList.remove('up');
+  tag3('');
+  $('cue3').textContent = 'Click for 5, 10 and 25 pack smart demos';
+}
+
+async function run3(){
+  const mine = ++gen3;
+  const on = () => mine === gen3;
+  const hold = async ms => { await wait(ms); return on(); };
+  const box = $('b3');
+  box.classList.add('playing');
+  $('cue3').textContent = 'Running the demo…';
+  $('smart3').classList.add('back');
+  $('phone3').classList.add('show');
+  document.body.classList.add('packrun');
+
+  // panel 2 shows its living room, lit, for the whole run
+  show2(1);
+  if (!await hold(700)) return;
+  ['b1','b3','b4'].forEach(b => roomShow(b, true));
+  tag3('Four rooms, one app');
+  if (!await hold(1600)) return;
+
+  const STEPS = [
+    {n: 5,  rooms: ['b1'], group: 'Kitchen',
+     lead: '<b>5-pack</b> — one great room',
+     line: 'One tap.<br>The whole kitchen, out.'},
+    {n: 10, rooms: ['b1','b2'], group: 'First floor',
+     lead: '<b>10-pack</b> — a whole floor',
+     line: 'One tap.<br>The whole floor, out.'},
+    {n: 25, rooms: ['b1','b2','b3','b4'], group: 'All Off', scene: true,
+     lead: '<b>25-pack</b> — nearly the whole house',
+     line: 'Goodnight, house.'}
+  ];
+
+  for (const st of STEPS){
+    tag3(st.lead);
+    $('apgrp').textContent = st.group;
+    $('apstate').textContent = st.scene ? '' : 'On';
+    $('approw3').classList.toggle('scene', !!st.scene);
+    $('approw3').classList.remove('off');
+    if (!await hold(1200)) return;
+    // a finger presses the group, and the app flips it off
+    $('apfing').classList.add('show');
+    if (!await hold(500)) return;
+    $('apfing').classList.remove('tap');
+    void $('apfing').offsetWidth;
+    $('apfing').classList.add('tap');
+    if (!await hold(380)) return;
+    $('approw3').classList.add('off');
+    if (!st.scene) $('apstate').textContent = 'Off';
+    st.rooms.forEach(b => roomDark(b, true));
+    if (!await hold(1400)) return;
+    $('apfing').classList.remove('show');
+    roomMsg(st.rooms[st.rooms.length - 1], st.line);
+    if (st.n === 25) roomMsg('b2', 'Everything but the candle.');
+    if (!await hold(3000)) return;
+    st.rooms.forEach(b => roomMsg(b, ''));
+    roomMsg('b2', '');
+    if (!await hold(500)) return;
+    st.rooms.forEach(b => roomDark(b, false));
+    $('approw3').classList.remove('off');
+    if (!st.scene) $('apstate').textContent = 'On';
+    tag3(st.lead + ' · <b>back on</b>');
+    if (!await hold(1700)) return;
+  }
+
+  /* voice finale — one phrase moves the whole house */
+  const ALL = ['b1','b2','b3','b4'];
+  $('phone3').classList.remove('show');
+  $('voice3').classList.add('show');
+  ALL.forEach(b => roomDark(b, true));
+  tag3('One phrase runs the whole house');
+  if (!await hold(1400)) return;
+
+  $('vd-alexa').classList.add('up');
+  if (!await hold(1500)) return;
+  ALL.forEach(b => roomDark(b, false));
+  tag3('&ldquo;Alexa, run Good Morning&rdquo; — <b>lights on</b>');
+  if (!await hold(2800)) return;
+
+  $('vd-google').classList.add('up');
+  if (!await hold(1500)) return;
+  ALL.forEach(b => roomDark(b, true));
+  tag3('&ldquo;Hey Google, run Good Night&rdquo; — <b>lights out</b>');
+  if (!await hold(2800)) return;
+
+  ALL.forEach(b => roomDark(b, false));
+  tag3('Every switch location can start smart, or become smart later');
+  if (!await hold(2400)) return;
+  panel3Rest();
+  box.classList.remove('playing');
+}
+
+function movShow(on){
+  const w = $('mov3w'), bg = $('mov3b'), fg = $('mov3');
+  w.classList.toggle('show', !!on);
+  if (!on){ [bg, fg].forEach(v => { try { v.pause(); } catch (e){} }); return; }
+  [bg, fg].forEach(v => { try { v.currentTime = 0; } catch (e){} });
+  bg.play().catch(() => {});
+  /* The demo runs off a click, so the scene is allowed its sound. If a
+     browser refuses anyway, play it silently rather than not at all. */
+  fg.muted = false;
+  fg.play().catch(err => {
+    // only a refusal is worth falling back for; an AbortError just means the
+    // demo moved on and paused it while the request was still in flight
+    if (err && err.name === 'NotAllowedError'){ fg.muted = true; fg.play().catch(() => {}); }
+  });
+}
+function extShow(on){
+  const v = $('ext3');
+  v.classList.toggle('show', !!on);
+  if (on){ try { v.currentTime = 0; v.play(); } catch (e){} } else v.pause();
+}
+
+/* Vacation mode: the house keeps looking lived in, room by room. */
+async function vacationDemo(){
+  const mine = ++gen3;
+  const on = () => mine === gen3;
+  const hold = async ms => { await wait(ms); return on(); };
+  const box = $('b3');
+  stopOthers('b3');
+  box.classList.add('playing');
+  document.body.classList.add('packrun');
+  $('smart3').classList.add('back');
+  show2(1);
+  ['b1','b3','b4'].forEach(b => roomShow(b, true));
+  ['b1','b2','b3','b4'].forEach(b => roomLevel(b, 0));
+
+  extShow(true);
+  tag3('<b>Vacation mode</b> — dusk, and the outside light comes on');
+  if (!await hold(4600)) return;
+  extShow(false);
+  if (!await hold(600)) return;
+
+  const beat = [
+    ['b1', 100, 'Kitchen on — someone is making dinner'],
+    ['b3', 100, 'Media room next'],
+    ['b2', 100, 'Then the living room'],
+    ['b1',   0, 'Kitchen off'],
+    ['b3',  28, 'Media room down to lamps'],
+    ['b2',  28, 'Living room down to lamps'],
+    ['b4', 100, 'Upstairs to the primary bedroom'],
+    ['b3',   0, 'Media room lamps out'],
+    ['b2',   0, 'Living room lamps out'],
+    ['b4',   0, 'Goodnight — and nobody was ever home']
+  ];
+  for (const [b, lv, line] of beat){
+    roomLevel(b, lv);
+    tag3(line);
+    if (!await hold(1700)) return;
+  }
+  if (!await hold(900)) return;
+  panel3Rest();
+  box.classList.remove('playing');
+}
+
+/* Schedules: the house lights itself ahead of you, room by room. */
+async function scheduleDemo(){
+  const mine = ++gen3;
+  const on = () => mine === gen3;
+  const hold = async ms => { await wait(ms); return on(); };
+  const box = $('b3');
+  stopOthers('b3');
+  box.classList.add('playing');
+  document.body.classList.add('packrun');
+  $('smart3').classList.add('back');
+  show2(1);
+  ['b1','b3','b4'].forEach(b => roomShow(b, true));
+  ['b1','b2','b3','b4'].forEach(b => roomLevel(b, 0));
+
+  extShow(true);
+  tag3('<b>Schedule</b> — the outside light comes on at dusk');
+  if (!await hold(4600)) return;
+  extShow(false);
+  roomLevel('b3', 100);            // and this room stays up for the rest of it
+  tag3('No app, no switch — it simply happens');
+  if (!await hold(1800)) return;
+
+  roomMsg('b1', 'No tripping over shoes');
+  if (!await hold(2600)) return;
+  roomMsg('b1', '');
+  roomLevel('b1', 100);
+  tag3('The kitchen is already on');
+  if (!await hold(1900)) return;
+
+  roomMsg('b2', 'It’s nice to have your home welcome you back');
+  if (!await hold(2900)) return;
+  roomMsg('b2', '');
+  roomLevel('b2', 100);
+  tag3('The living room follows');
+  if (!await hold(1900)) return;
+
+  roomLevel('b4', 100);
+  tag3('And the bedroom, waiting for later');
+  if (!await hold(2400)) return;
+  panel3Rest();
+  box.classList.remove('playing');
+}
+
+/* Movie night: one scene sets the whole floor, and only the set stays bright. */
+async function movieDemo(){
+  const mine = ++gen3;
+  const on = () => mine === gen3;
+  const hold = async ms => { await wait(ms); return on(); };
+  const box = $('b3');
+  stopOthers('b3');
+  box.classList.add('playing');
+  document.body.classList.add('packrun');
+  $('smart3').classList.add('back');
+  show2(1);
+  ['b1','b3','b4'].forEach(b => roomShow(b, true));
+  ['b1','b2','b3','b4'].forEach(b => roomLevel(b, 100));
+  $('tv3').classList.remove('on');
+  tag3('<b>Movie night</b> — the whole floor, on one scene');
+  if (!await hold(1800)) return;
+
+  $('tv3').classList.add('on');
+  tag3('The set comes on');
+  if (!await hold(1500)) return;
+
+  roomLevel('b3', 14);
+  tag3('Media room falls away to the screen');
+  if (!await hold(2000)) return;
+
+  roomLevel('b1', 0);
+  tag3('Kitchen out — nothing spilling in');
+  if (!await hold(1800)) return;
+
+  roomLevel('b2', 24);
+  tag3('Living room to lamps, so nobody is walking in the dark');
+  if (!await hold(2100)) return;
+
+  roomLevel('b4', 0);
+  tag3('Bedroom out');
+  if (!await hold(1700)) return;
+
+  roomMsg('b3', 'One tap. Every room knows its part.');
+  if (!await hold(2800)) return;
+  roomMsg('b3', '');
+  if (!await hold(400)) return;
+
+  movShow(true);
+  tag3('<b>Netflix and chill</b>');
+  if (!await hold(7900)) return;
+  movShow(false);
+  if (!await hold(800)) return;
+
+  $('tv3').classList.remove('on');
+  ['b1','b2','b3','b4'].forEach(b => roomLevel(b, 100));
+  tag3('Ambiance, everywhere, without touching a switch');
+  if (!await hold(2200)) return;
+  panel3Rest();
+  box.classList.remove('playing');
+}
+
+$('moviebtn').addEventListener('click', e => { e.stopPropagation(); movieDemo(); });
+$('vacbtn').addEventListener('click', e => { e.stopPropagation(); vacationDemo(); });
+$('schedbtn').addEventListener('click', e => { e.stopPropagation(); scheduleDemo(); });
+
+function reset3(){
+  gen3++;
+  $('b3').classList.remove('playing');
+  panel3Rest();
+}
+
+$('cuebtn3').addEventListener('click', e => {
+  e.stopPropagation();
+  if ($('b3').classList.contains('playing')) reset3(); else { stopOthers('b3'); run3(); }
+});
+
+/* ── wiring ────────────────────────────────────────────────── */
+const RUN   = { b1:play1, b2:run2,  b3:run3,  b4:()=>play4(0) };
+const RESET = { b1:reset1, b2:reset2, b3:reset3,
+                b4:()=>{ P4.reset(); ch4.classList.add('hidden'); } };
+const IDS = ['b1','b2','b3','b4'];
+
+/* Every handler is isolated: if one panel throws, the others keep working. */
+function safe(fn, what){
+  try { fn(); } catch (err) { console.error('[pitch] ' + what + ' failed:', err); }
+}
+/* Only one panel runs at a time — otherwise two soundtracks play over each other. */
+function stopOthers(keep){
+  IDS.filter(i => i !== keep).forEach(i => safe(RESET[i], i + ' reset'));
+}
+/* Click a resting panel to play it; click it again to stop and return to
+   its opening state, every tile back on screen and ready to be picked. */
+function start(id){
+  // panel 2 walks its own three steps, so a second click advances it
+  if (id !== 'b2' && $(id).classList.contains('playing')){
+    safe(RESET[id], id + ' reset'); return;
+  }
+  stopOthers(id);
+  safe(RUN[id], id + ' play');
+}
+
+IDS.forEach(id => {
+  const box = $(id);
+  box.addEventListener('click', e => { if (!e.target.closest('.replay')) start(id); });
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); start(id); }
+  });
+});
+document.querySelectorAll('.replay').forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation(); const id = b.dataset.replay;
+  // panel 1 can be showing the clip or the design story; the story closes back
+  // to the panel rather than starting the clip, so ask before resetting
+  const story = id === 'b1' && $('dsg1').classList.contains('show');
+  safe(RESET[id], id + ' reset');
+  if (id === 'b2' || story) return;   // these reset in place and stay there
+  setTimeout(() => start(id), 240);
+}));
+
+</script>
+</body>
+</html>

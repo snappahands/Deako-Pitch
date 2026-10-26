@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deako — Same house. Same street. Same school.</title>
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Deako · the opener   ·   public/pitch/same-house.html
+   Runs BEFORE index.html ("How it works, in four clicks").
+   A trainer drives it from the front of the room: click anywhere,
+   or Space / → to advance, ← to go back, number keys to jump.
+   Every competitor claim is sourced on the last step — if a figure
+   is not in MARKETS it does not appear on screen.
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --navy:#0f1e3d; --navy-2:#1b2d6b; --blue:#1ba0dd; --blue-d:#0d7fb4;
+  --ink:#16202e; --ink-2:#5a6675; --muted:#93a0b0;
+  --line:#e3e8ef; --panel:#f5f7fa; --white:#fff;
+  --same:#8c98a8; --diff:#1ba0dd;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--navy);
+  -webkit-font-smoothing:antialiased;overflow:hidden}
+.hidden{display:none!important}
+button{font:inherit}
+
+.stage{height:100vh;display:flex;flex-direction:column;padding:16px 18px 10px;gap:12px}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;color:#fff;flex:none}
+.brand{display:flex;align-items:baseline;gap:12px}
+.brand .logo{font-size:25px;font-weight:800;letter-spacing:-.03em}
+.brand .logo span{color:var(--blue)}
+.brand .kick{font-size:13px;font-weight:600;color:#8fa4c0}
+.hdr-right{display:flex;align-items:center;gap:14px}
+.mkt{display:flex;align-items:center;gap:7px;font-size:12px;color:#8fa4c0;font-weight:600}
+.mkt select{font:inherit;font-size:12px;font-weight:700;color:#fff;background:#16294e;
+  border:1px solid #2b4273;border-radius:8px;padding:5px 9px;cursor:pointer}
+.hint{font-size:12.5px;color:#8fa4c0;font-weight:600}
+.hint b{color:var(--blue)}
+.hint kbd{background:#1b2d6b;border:1px solid #2b4273;border-radius:4px;padding:1px 5px;
+  font:inherit;font-size:11px;font-weight:700;color:#cfe0ef}
+
+/* ── the sheet everything lives on ─────────────────────────── */
+.sheet{flex:1;background:var(--white);border-radius:14px;overflow:hidden;position:relative;
+  box-shadow:0 18px 40px -20px rgba(0,0,0,.55);display:flex;flex-direction:column;min-height:0}
+
+.sheet-head{padding:16px 24px 12px;border-bottom:1px solid var(--line);flex:none}
+.eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--blue)}
+h1{margin:4px 0 0;font-size:clamp(21px,2.5vw,30px);letter-spacing:-.025em;line-height:1.08;color:var(--navy)}
+.dek{margin:6px 0 0;font-size:13.5px;line-height:1.45;color:var(--ink-2);max-width:92ch}
+.dek b{color:var(--ink)}
+
+.sheet-body{flex:1;min-height:0;overflow:auto;padding:14px 24px 18px;position:relative}
+
+/* ── comparison matrix ─────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+th,td{padding:9px 11px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{position:sticky;top:0;background:var(--white);z-index:3;border-bottom:2px solid var(--navy);
+  font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);font-weight:800;padding-bottom:7px}
+thead th.us{color:var(--navy)}
+thead th .sub{display:block;font-size:10px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);margin-top:2px}
+col.cat{width:12.5%}
+col.verdict{width:11%}
+td.cat{font-weight:800;color:var(--navy);font-size:12px;letter-spacing:.02em;text-transform:uppercase}
+td.us{background:#f3f9fd}
+tbody tr{opacity:0;transform:translateY(6px);transition:opacity .34s ease,transform .34s ease}
+tbody tr.on{opacity:1;transform:none}
+tbody tr.dim td:not(.cat):not(.vd){color:#aab3bf}
+.vd{font-weight:800;font-size:11.5px;letter-spacing:.03em;text-transform:uppercase;text-align:right;white-space:nowrap}
+.vd.same{color:var(--same)}
+.vd.diff{color:var(--diff)}
+.vd .mark{font-size:14px;margin-right:4px}
+tr.switchrow td{background:#fff8ec;border-top:2px solid #e8b057;border-bottom:2px solid #e8b057}
+tr.switchrow td.cat{color:#9a6114}
+tr.deakorow td{background:#eaf6fd;border-top:2px solid var(--blue);border-bottom:2px solid var(--blue)}
+tr.deakorow td.cat{color:var(--blue-d)}
+
+/* ── the full-bleed moments ────────────────────────────────── */
+/* sits above the sticky table header, which is z-index 3 */
+.moment{position:absolute;inset:0;z-index:5;background:var(--white);display:none;
+  flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px 7vw;gap:14px}
+.moment.on{display:flex;animation:fade .4s ease}
+@keyframes fade{from{opacity:0;transform:scale(.995)}to{opacity:1;transform:none}}
+.moment h2{margin:0;font-size:clamp(26px,4.4vw,52px);line-height:1.04;letter-spacing:-.03em;color:var(--navy);max-width:20ch}
+.moment h2 em{font-style:normal;color:var(--blue)}
+.moment p{margin:0;font-size:clamp(14px,1.5vw,18px);line-height:1.5;color:var(--ink-2);max-width:62ch}
+.moment p b{color:var(--ink)}
+.moment .tiny{font-size:12px;color:var(--muted);max-width:70ch}
+
+.swrow{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.swcard{width:150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 12px 11px;
+  display:flex;flex-direction:column;align-items:center;gap:8px}
+.swcard img{width:76px;height:auto;display:block}
+.swcard b{font-size:13px;color:var(--navy)}
+.swcard span{font-size:11px;color:var(--muted);font-weight:600}
+.swcard.hero{background:#eaf6fd;border-color:var(--blue);box-shadow:0 0 0 4px rgba(27,160,221,.14)}
+.swcard.hero b{color:var(--blue-d)}
+
+.ladder{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:min(1000px,100%);margin-top:6px}
+.rung{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 14px;text-align:left;
+  opacity:0;transform:translateY(8px);transition:opacity .3s ease,transform .3s ease}
+.rung.on{opacity:1;transform:none}
+.rung .n{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--blue)}
+.rung .t{font-size:15.5px;font-weight:800;color:var(--navy);margin-top:3px;letter-spacing:-.01em}
+.rung .d{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.42}
+
+.beats{display:flex;flex-direction:column;gap:9px;width:min(760px,100%);margin-top:2px}
+.beat{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;text-align:left;
+  background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:10px;padding:11px 14px;
+  opacity:0;transform:translateX(-6px);transition:opacity .3s ease,transform .3s ease}
+.beat.on{opacity:1;transform:none}
+.beat .ico{font-size:20px;line-height:1}
+.beat .say{font-size:15px;font-weight:800;color:var(--navy);letter-spacing:-.01em}
+.beat .note{font-size:12px;color:var(--ink-2);margin-top:2px;line-height:1.4}
+
+.cta{display:inline-flex;align-items:center;gap:10px;background:var(--navy);color:#fff;text-decoration:none;
+  font-size:16px;font-weight:800;letter-spacing:-.01em;padding:14px 26px;border-radius:999px;margin-top:6px;
+  box-shadow:0 10px 28px -10px rgba(15,30,61,.7);transition:transform .18s,box-shadow .18s,background .18s}
+.cta:hover{background:var(--navy-2);transform:translateY(-2px);box-shadow:0 16px 34px -12px rgba(15,30,61,.8)}
+.cta .arw{color:var(--blue);font-size:20px;line-height:1}
+
+/* ── sources ───────────────────────────────────────────────── */
+.src{font-size:11.5px;color:var(--ink-2);line-height:1.6;text-align:left;max-width:95ch;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.src h3{margin:0 0 6px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--navy)}
+.src a{color:var(--blue-d)}
+.src li{margin-bottom:3px}
+.src ul{margin:0;padding-left:18px}
+
+/* ── footer rail ───────────────────────────────────────────── */
+.rail{flex:none;display:flex;align-items:center;gap:8px;color:#8fa4c0;font-size:11px;font-weight:700;flex-wrap:wrap}
+.rail .dots{display:flex;gap:5px;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:#2b4273;border:0;padding:0;cursor:pointer;transition:background .2s,transform .2s}
+.dot:hover{transform:scale(1.25)}
+.dot.on{background:var(--blue)}
+.dot.done{background:#51719e}
+.rail .nm{margin-left:auto;color:#6f86a8}
+
+@media (max-width:1100px){
+  col.cat{width:16%} col.verdict{width:0}
+  .vd,thead th.vdh{display:none}
+  .ladder{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:760px){
+  body{overflow:auto} .stage{height:auto;min-height:100vh}
+  table{font-size:12px} th,td{padding:7px 8px}
+  .ladder{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  tbody tr,.rung,.beat,.moment{transition:none;animation:none}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <header>
+    <div class="brand">
+      <div class="logo">dea<span>k</span>o</div>
+      <div class="kick">Same house. Same street. Same school.</div>
+    </div>
+    <div class="hdr-right">
+      <label class="mkt">Market
+        <select id="mktsel" aria-label="Choose market"></select>
+      </label>
+      <div class="hint">Click to advance &nbsp;·&nbsp; <kbd>Space</kbd> <kbd>&rarr;</kbd> forward, <kbd>&larr;</kbd> back</div>
+    </div>
+  </header>
+
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="eyebrow" id="eyebrow">For the D.R. Horton sales floor</div>
+      <h1 id="h1">Your competition sells the same house you do.</h1>
+      <p class="dek" id="dek"></p>
+    </div>
+
+    <div class="sheet-body" id="body">
+      <table id="tbl">
+        <colgroup><col class="cat"><col><col><col><col><col><col class="verdict"></colgroup>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <!-- full-bleed moments stack over the matrix -->
+      <div class="moment" id="m-pause">
+        <div class="eyebrow">Pause here</div>
+        <h2 id="pausehead"></h2>
+        <p id="pausesub"></p>
+      </div>
+
+      <div class="moment" id="m-switch">
+        <div class="eyebrow">The one thing nobody puts on the brochure</div>
+        <h2>So what is actually different?</h2>
+        <div class="swrow">
+          <figure class="swcard"><img src="media/sw-toggle.png" alt="Classic toggle switch"><b>Toggle</b><span>1920s</span></figure>
+          <figure class="swcard"><img src="media/sw-decorator.png" alt="Decorator rocker switch"><b>Decorator</b><span>1970s</span></figure>
+          <figure class="swcard"><img src="media/sw-decorator.png" alt="Decorator rocker switch" style="opacity:.55"><b>Decorator</b><span>and that is the whole list</span></figure>
+        </div>
+        <p>Every builder on that grid lists the cabinets, the counters, the flooring, the shingles.
+          <b>Not one of them lists a light switch.</b> It is the last thing in the house nobody is competing on.</p>
+      </div>
+
+      <div class="moment" id="m-deako">
+        <div class="eyebrow">Now show them yours</div>
+        <h2>You might not like it. <em>That is the point.</em></h2>
+        <div class="swrow">
+          <figure class="swcard"><img src="media/sw-toggle.png" alt="Toggle"><b>Toggle</b><span>does one thing</span></figure>
+          <figure class="swcard"><img src="media/sw-decorator.png" alt="Decorator"><b>Decorator</b><span>does one thing</span></figure>
+          <figure class="swcard hero"><img src="media/sw-deako.png" alt="Deako switch"><b>Deako</b><span>changes by hand, no electrician</span></figure>
+        </div>
+        <p>It is different, and different is the whole job of a model home.
+          <b>It is the only thing in the house that can change after they move in</b> — without a drywall patch,
+          without an electrician, without a permit.</p>
+      </div>
+
+      <div class="moment" id="m-powers">
+        <div class="eyebrow">What it can become</div>
+        <h2>One socket. Four different houses.</h2>
+        <div class="ladder" id="ladder"></div>
+        <p class="tiny">Same connector in the wall every time. The buyer pulls one switch out and puts another one in.</p>
+      </div>
+
+      <div class="moment" id="m-none">
+        <div class="eyebrow">Walk them back through the house</div>
+        <h2>None of them can do <em>this</em>.</h2>
+        <div class="beats" id="beats"></div>
+      </div>
+
+      <div class="moment" id="m-close">
+        <div class="eyebrow">Close the loop</div>
+        <h2>Every model you sell can already do this.</h2>
+        <p>The switches are bought. They are in the wall. Nothing here needs a PO, a product order or an electrician —
+          it needs you to walk a buyer to a wall and press it.</p>
+        <p style="font-size:17px;font-weight:800;color:var(--navy)">What questions do you have?</p>
+        <a class="cta" href="index.html">Show me how it works, in four clicks <span class="arw">&rarr;</span></a>
+      </div>
+
+      <div class="moment" id="m-src">
+        <div class="eyebrow">Where every number came from</div>
+        <h2 style="font-size:clamp(20px,2.4vw,30px)">Sources</h2>
+        <div class="src" id="srcbox"></div>
+        <a class="cta" href="index.html">Continue to the four clicks <span class="arw">&rarr;</span></a>
+      </div>
+    </div>
+  </div>
+
+  <div class="rail">
+    <div class="dots" id="dots"></div>
+    <div class="nm" id="stepname"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════
+   MARKETS — everything on screen comes from here.
+   To add a market: copy the Fort Wayne block, swap the builders and
+   the rows, and fill `sources`. A market with no rows renders an
+   honest "not researched yet" state rather than empty boxes.
+   `us` is always the D.R. Horton column.
+   ═══════════════════════════════════════════════════════════════ */
+const MARKETS = {
+
+  fort_wayne: {
+    label: "Fort Wayne, IN",
+    dek: "Thirty-three builders work this metro and <b>not one national production builder competes with you here</b> — " +
+         "no Lennar, no Pulte, no M/I, no LGI. Your competition is regional: Heller, Lancia, Granite Ridge, Majestic. " +
+         "They build the same house, on the same kind of street, into the same schools.",
+    cols: [
+      { name:"D.R. Horton", sub:"Thunderhawk · 19 communities", us:true },
+      { name:"Heller Homes", sub:"10 communities · 334 homes" },
+      { name:"Lancia Homes", sub:"18 communities" },
+      { name:"Granite Ridge", sub:"Fort Wayne based" },
+      { name:"Majestic Homes", sub:"Fort Wayne & Lafayette" }
+    ],
+    rows: [
+      { cat:"Outside", verdict:"same",
+        cells:["Stone masonry + vinyl siding, covered porch, concrete patio, 2–3 car garage",
+               "30-year dimensional shingles, insulated footing & slab",
+               "Ranch, two-story and villa plans across NE, NW and SW",
+               "Ranch or two-story, often a 3-car garage and a basement",
+               "Single family on lots across Fort Wayne"] },
+      { cat:"Inside", verdict:"same",
+        cells:["Open concept, 1,498–2,600 sq ft, 9-ft ceilings, LVP in common areas",
+               "Open concept, gas fireplace with brick face and wood mantel standard",
+               "Base price covers all painting, flooring, cabinets and fixtures",
+               "Open concept, high-performance windows, upgraded insulation",
+               "Semi-custom layouts, buyer-selected finishes"] },
+      { cat:"Kitchen", verdict:"same",
+        cells:["Whirlpool stainless, shaker cabinets, quartz, island with bar seating",
+               "Stainless micro / dishwasher / range, J&M soft-close cabinets, island",
+               "Stainless fridge, dishwasher, micro, smooth-top range, quartz, soft-close",
+               "Custom cabinets, six-foot islands",
+               "Buyer-selected cabinetry and counters"] },
+      { cat:"Bathroom", verdict:"same",
+        cells:["Dual vanity sinks in the primary",
+               "36-inch vanity height",
+               "Ceramic tile, standard across the series",
+               "Ceramic showers",
+               "Buyer-selected tile and fixtures"] },
+      { cat:"Bedroom", verdict:"same",
+        cells:["3–5 bedrooms, walk-in closets with built-in shelving, carpet",
+               "3–4 bedrooms typical",
+               "3–4 bedrooms across the collections",
+               "3–4 bedrooms, ranch or two-story",
+               "3–4 bedrooms, semi-custom"] },
+      { cat:"Schools", verdict:"same",
+        cells:["Washington Center Elem · Shawnee Middle · Northrop High",
+               "Same NW and NE Allen County districts",
+               "Same SW, NE and NW Fort Wayne districts",
+               "Same NE Indiana districts",
+               "Same Fort Wayne districts"] },
+      { cat:"Price", verdict:"same",
+        cells:["From $279,900",
+               "From $230,900",
+               "$150K–$500K · most $328K–$398K",
+               "$250K–$500K · average $350–400K",
+               "$300Ks–$500Ks"] }
+    ],
+    switchRow: {
+      cat:"Light switch", verdict:"diff",
+      cells:["Deako connector in every box — any switch pulls out by hand",
+             "Not listed anywhere in standard features",
+             "Not listed anywhere in standard features",
+             "Not listed anywhere in standard features",
+             "Not listed anywhere in standard features"]
+    },
+    pauseHead: "Seven rows. Seven ties.",
+    pauseSub:  "Quartz against quartz. Stainless against stainless. Shaker against shaker. The same schools, " +
+               "inside fifty thousand dollars of each other. <b>A buyer standing in your model cannot tell these houses apart</b> — " +
+               "and neither can you, on this grid.",
+    sources: [
+      ['D.R. Horton — Thunderhawk, Fort Wayne (price, sq ft, schools, Whirlpool appliances, quartz, shaker, Mohawk LVP, Home is Connected)','https://www.drhorton.com/indiana/fort-wayne/fort-wayne/thunderhawk'],
+      ['D.R. Horton — Fort Wayne communities (Colonial Heights, Trader’s Trace, Belmont Woods, Livingston Lakes, Signal Ridge, The Haven, Sierra Ridge)','https://www.drhorton.com/indiana/fort-wayne'],
+      ['Heller Homes — standard features (J&M cabinets, laminate counters, stainless micro/dishwasher/range, gas fireplace, 30-year shingles)','https://hellersite.com/standard-features/'],
+      ['Heller Homes — Fort Wayne communities and pricing','https://www.newhomesource.com/communities/in/fort-wayne-area/builder-heller-homes-42373'],
+      ['Lancia Homes — what the base price includes','https://www.lanciahomes.com/content/what-does-base-price-home-include'],
+      ['Granite Ridge Builders — Fort Wayne custom homes','https://graniteridgebuilders.com/'],
+      ['Majestic Homes — Fort Wayne communities','https://majestichomesin.com/fort-wayne-communities/'],
+      ['Fort Wayne area builder list — 33 builders, no Lennar / Pulte / M/I / LGI','https://www.newhomesource.com/builders/in/fort-wayne-area'],
+      ['D.R. Horton “Home is Connected” — Qolsys hub, Alarm.com, Honeywell thermostat, Kwikset lock, SkyBell doorbell, one Eaton smart switch','https://www.globenewswire.com/news-release/2019/02/20/1738175/0/en/Alarm-com-s-Smart-Home-Platform-Will-Power-Every-New-D-R-Horton-Home.html']
+    ],
+    caveat: "Figures are the builders’ own published standard-feature pages and community listings, read on 5 Oct 2026. " +
+            "The light-switch row is deliberately worded as what each builder <b>publishes</b>: no competitor names a switch " +
+            "in its standard features at all. Toggle and decorator are the category norm in this price band, not a sourced " +
+            "per-builder claim — do not say otherwise on the floor."
+  },
+
+  /* Charlotte and Greensboro face the national builders, so the grid is a
+     different fight. Left empty on purpose until the same depth of research
+     is done — an empty market says so rather than showing Fort Wayne's numbers
+     under another city's name. */
+  charlotte:  { label:"Charlotte, NC",  todo:true },
+  greensboro: { label:"Greensboro, NC", todo:true }
+};
+
+/* The Deako ladder — mirrors the four panels of index.html so the handoff lands. */
+const LADDER = [
+  { n:"Step one",   t:"It stays simple",        d:"Leave it alone and it is a light switch. Nothing to learn, nothing to set up, nothing to break." },
+  { n:"Step two",   t:"It gains simple powers", d:"Swap in a dimmer, a motion sensor, a timer, a night light. No app, no wifi, no electrician." },
+  { n:"Step three", t:"It gets smart",          d:"Swap in a Smart Switch and the same wall answers the app and the voice assistant." },
+  { n:"Step four",  t:"It gets intelligent",    d:"Schedules, scenes and automations — the house starts anticipating instead of waiting." }
+];
+
+/* The demo beats, in the order they land in a model home. */
+const BEATS = [
+  { ico:"🗣️", say:"“Alexa, run all off.”",        note:"The whole floor goes dark at once. Let the room sit in it." },
+  { ico:"🗣️", say:"“Alexa, run all on.”",         note:"And back. Two sentences, no hardware they can see." },
+  { ico:"📱", say:"Do not want Alexa listening? Tap the app.", note:"Same result, nothing in the room is hearing anything." },
+  { ico:"🔘", say:"App too complicated? Press the switch.",    note:"A scene off the wall itself. All off. All on. No phone, no account." },
+  { ico:"✋", say:"No toggle can do this. No decorator switch can do this.", note:"That is the sentence. Say it at the wall, with your hand on it." }
+];
+
+/* ── steps ──────────────────────────────────────────────────── */
+const $ = s => document.querySelector(s);
+let MKT = "fort_wayne", step = 0, STEPS = [];
+
+function buildSteps(m){
+  const s = [{ key:"intro", name:"The setup" }];
+  if (m.todo) return s.concat([{ key:"todo", name:"Not researched yet" }]);
+  m.rows.forEach((r,i) => s.push({ key:"row", i, name:r.cat }));
+  s.push({ key:"pause",  name:"Pause" });
+  s.push({ key:"switch", name:"The switch" });
+  s.push({ key:"swrow",  name:"On the grid" });
+  s.push({ key:"deako",  name:"Deako" });
+  s.push({ key:"powers", name:"What it becomes" });
+  s.push({ key:"none",   name:"None of them" });
+  s.push({ key:"close",  name:"Close" });
+  s.push({ key:"src",    name:"Sources" });
+  return s;
+}
+
+function renderMarketSelect(){
+  $("#mktsel").innerHTML = Object.entries(MARKETS)
+    .map(([k,v]) => `<option value="${k}"${k===MKT?" selected":""}>${v.label}</option>`).join("");
+  $("#mktsel").onchange = e => { MKT = e.target.value; step = 0; renderAll(); };
+}
+
+function renderTable(m){
+  if (m.todo) { $("#tbl").classList.add("hidden"); return; }
+  $("#tbl").classList.remove("hidden");
+  $("#thead").innerHTML =
+    `<th>&nbsp;</th>` +
+    m.cols.map(c => `<th class="${c.us?"us":""}">${c.name}<span class="sub">${c.sub||""}</span></th>`).join("") +
+    `<th class="vdh" style="text-align:right">Verdict</th>`;
+  const row = (r, cls) => `<tr class="${cls||""}" data-cat="${r.cat}">
+      <td class="cat">${r.cat}</td>
+      ${r.cells.map((c,i) => `<td class="${m.cols[i] && m.cols[i].us ? "us":""}">${c}</td>`).join("")}
+      <td class="vd ${r.verdict}">${r.verdict==="same"
+        ? '<span class="mark">=</span>Same'
+        : '<span class="mark">≠</span>Only you'}</td></tr>`;
+  $("#tbody").innerHTML = m.rows.map(r => row(r)).join("") + row(m.switchRow, "switchrow hidden");
+}
+
+function renderLadder(){
+  $("#ladder").innerHTML = LADDER.map(r =>
+    `<div class="rung"><div class="n">${r.n}</div><div class="t">${r.t}</div><div class="d">${r.d}</div></div>`).join("");
+}
+function renderBeats(){
+  $("#beats").innerHTML = BEATS.map(b =>
+    `<div class="beat"><div class="ico">${b.ico}</div><div><div class="say">${b.say}</div><div class="note">${b.note}</div></div></div>`).join("");
+}
+function renderSources(m){
+  $("#srcbox").innerHTML =
+    `<h3>Published by the builders themselves</h3><ul>` +
+    m.sources.map(([t,u]) => `<li>${t} — <a href="${u}" target="_blank" rel="noopener">${new URL(u).hostname.replace(/^www\./,"")}</a></li>`).join("") +
+    `</ul><p style="margin:9px 0 0">${m.caveat}</p>`;
+}
+
+function renderDots(){
+  $("#dots").innerHTML = STEPS.map((s,i) =>
+    `<button class="dot${i===step?" on":i<step?" done":""}" data-i="${i}" title="${s.name}" aria-label="${s.name}"></button>`).join("");
+  $("#dots").querySelectorAll(".dot").forEach(b => b.onclick = e => { e.stopPropagation(); go(+b.dataset.i); });
+  $("#stepname").textContent = `${step+1} / ${STEPS.length} · ${STEPS[step].name}`;
+}
+
+const MOMENTS = ["m-pause","m-switch","m-deako","m-powers","m-none","m-close","m-src"];
+function show(id){ MOMENTS.forEach(x => $("#"+x).classList.toggle("on", x===id)); }
+
+function paint(){
+  const m = MARKETS[MKT], st = STEPS[step];
+  $("#dek").innerHTML = m.todo
+    ? `<b>${m.label} has not been researched yet.</b> The Fort Wayne grid is specific to Fort Wayne builders — ` +
+      `showing it under another city's name would be wrong. Ask for this market and it gets the same treatment.`
+    : m.dek;
+
+  const rows = [...$("#tbody").querySelectorAll("tr")];
+  const swr = rows[rows.length-1];
+  rows.forEach(r => { r.classList.remove("on","dim"); });
+  if (swr) swr.classList.add("hidden");
+
+  show(null);
+  $("#eyebrow").textContent = "For the D.R. Horton sales floor";
+  $("#h1").textContent = "Your competition sells the same house you do.";
+
+  if (st.key === "row"){
+    for (let i=0;i<=st.i;i++) rows[i].classList.add("on");
+  } else if (st.key === "intro"){
+    /* nothing revealed yet */
+  } else if (st.key === "todo"){
+    /* dek carries it */
+  } else {
+    rows.forEach(r => r.classList.add("on"));
+    if (st.key === "pause"){
+      $("#eyebrow").textContent = "Stop talking here";
+      $("#h1").textContent = "This is the part where you let the room go quiet.";
+      $("#pausehead").textContent = m.pauseHead;
+      $("#pausesub").innerHTML = m.pauseSub;
+      show("m-pause");
+    }
+    if (st.key === "switch"){
+      $("#eyebrow").textContent = "Now take them off the grid";
+      $("#h1").textContent = "Everything on that list, they have too.";
+      show("m-switch");
+    }
+    if (st.key === "swrow"){
+      swr.classList.remove("hidden"); swr.classList.add("on");
+      rows.slice(0,-1).forEach(r => r.classList.add("dim"));
+      $("#eyebrow").textContent = "The row nobody else can fill";
+      $("#h1").textContent = "Seven ties — and one row that is not close.";
+      swr.scrollIntoView({block:"center", behavior:"smooth"});
+    }
+    if (st.key === "deako"){
+      $("#eyebrow").textContent = "The differentiator";
+      $("#h1").textContent = "There is exactly one thing they cannot copy this year.";
+      show("m-deako");
+    }
+    if (st.key === "powers"){
+      $("#eyebrow").textContent = "Its super powers";
+      $("#h1").textContent = "It can transform. Nothing else in the house can.";
+      show("m-powers");
+      const rg = $("#ladder").children;
+      [...rg].forEach((el,i) => { el.classList.remove("on"); setTimeout(() => el.classList.add("on"), 90*i); });
+    }
+    if (st.key === "none"){
+      $("#eyebrow").textContent = "Back through the countertops";
+      $("#h1").textContent = "Their steel is no more stainless than yours.";
+      show("m-none");
+      const bs = $("#beats").children;
+      [...bs].forEach((el,i) => { el.classList.remove("on"); setTimeout(() => el.classList.add("on"), 260*i); });
+    }
+    if (st.key === "close"){
+      $("#eyebrow").textContent = "Hand it to them";
+      $("#h1").textContent = "You are standing in the only house on the street that does this.";
+      show("m-close");
+    }
+    if (st.key === "src"){
+      $("#eyebrow").textContent = "Check me on any of it";
+      $("#h1").textContent = "Every claim above, and where it came from.";
+      renderSources(m); show("m-src");
+    }
+  }
+  renderDots();
+}
+
+function go(i){ step = Math.max(0, Math.min(STEPS.length-1, i)); paint(); }
+function next(){ go(step+1); }
+function prev(){ go(step-1); }
+
+function renderAll(){
+  const m = MARKETS[MKT];
+  STEPS = buildSteps(m);
+  renderTable(m); renderLadder(); renderBeats();
+  paint();
+}
+
+/* advance on click anywhere that is not an interactive element */
+document.addEventListener("click", e => {
+  if (e.target.closest("a,button,select,label,.src")) return;
+  next();
+});
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT") return;
+  if (e.key === " " || e.key === "ArrowRight" || e.key === "PageDown"){ e.preventDefault(); next(); }
+  else if (e.key === "ArrowLeft" || e.key === "PageUp"){ e.preventDefault(); prev(); }
+  else if (e.key === "Home"){ go(0); }
+  else if (e.key === "End"){ go(STEPS.length-1); }
+  else if (/^[1-9]$/.test(e.key)){ go(+e.key - 1); }
+});
+
+renderMarketSelect();
+renderAll();
+</script>
+</body>
+</html>

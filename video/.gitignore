@@ -1,0 +1,3 @@
+# Source videos are large; only web-optimised cuts are committed.
+*.mp4
+!*-web.mp4
