@@ -481,6 +481,83 @@ footer b{color:#c7d4e6}
 [data-mv="b4-chapters"]{bottom:2px}
 /* panel 2's caption keeps its own corner, nudged */
 [data-mv="b2-caption"]{translate:-1px 13px}
+
+/* -- phones ---------------------------------------------------------
+   Sits last so it wins over the desktop rules above (the old 940px rule
+   lost to `.box{min-height:0}`, which collapsed every panel to ~200px).
+   Panels stack and get real height; buttons that sat over the heading
+   move to the bottom; rows of four buttons become two by two. */
+@media (max-width:640px){
+  .stage{padding:12px 12px 14px;gap:10px}
+  header{gap:6px}
+  .brand .logo{font-size:23px}
+  .brand .kick{font-size:12px}
+  header .hint{font-size:12px;line-height:1.5}
+  .grid{gap:14px}
+  .box{min-height:clamp(520px,82svh,640px)}
+  .box:hover{transform:none}
+  .cap{padding:12px 44px 0 14px}
+  h2{font-size:19px}
+  .still,.smartrow,.tiles{padding:4px 8px 8px}
+  .room,.packroom,.extclip,.movwrap,.design{left:8px;right:8px}
+  .extclip,.movwrap{width:calc(100% - 16px)}
+
+  /* cue buttons that were centred over the heading now sit at the bottom */
+  [data-mv="b2-demo"],[data-mv="b4-play"]{top:auto;bottom:14px}
+  .cue{max-width:calc(100% - 28px);font-size:12px;padding:8px 13px}
+  .replay{font-size:12px;padding:7px 13px}
+  .hud,.packtag{white-space:normal;text-align:center;max-width:92%;width:max-content;line-height:1.3}
+  .hud.wide{max-width:92%;white-space:normal}
+
+  /* panel 1: the two pills stack; the design bullets drop below the switches */
+  #b1 .demorow{grid-template-columns:1fr;left:12px;right:12px;bottom:12px;gap:8px}
+  #b1 .demorow .cue{font-size:12px;padding:9px 12px}
+  #b1 .canvas{margin-bottom:96px}
+  #b1.playing .canvas{margin-bottom:0}
+  .design{padding-bottom:50px}
+  .design.bul .dsgrow{width:100%;flex:0 0 40%}
+  .dsgbul{left:10px;right:10px;width:auto;top:auto;bottom:52px;gap:5px}
+  .dsgbul li{font-size:11px}
+  [data-mv="b1-replay"]{right:12px;top:auto;bottom:12px}
+
+  /* panel 2: smaller plates either side of the swap */
+  /* the plates run in a row above and below the swap instead of down its sides */
+  .mcol{top:auto;transform:none;flex-direction:row;justify-content:space-around;left:8px;right:8px;gap:4px}
+  .mcol.l{top:8px} .mcol.r{bottom:8px}
+  .mitem,.mcol.l .mitem{flex-direction:column;gap:4px}
+  .mitem img{width:auto;height:64px}
+  .mitem .mn,.mcol.l .mitem .mn,.mcol.r .mitem .mn{width:96px;font-size:10.5px;text-align:center}
+  .gifplay{padding:122px 8px 150px}
+  #b2 .hud{bottom:111px}
+  .modwrap{height:110px}
+  .fanrig{--fw:190px}
+  #b2 .canvas{margin-bottom:72px}
+
+  /* panel 3: products sized to fit three across; demos two by two */
+  .sm img{height:84px}
+  .sm span{font-size:11px}
+  .smartcard{padding:0 8px;gap:4px;justify-content:space-around}
+  #b3 .canvas{margin-bottom:104px}
+  .demorow{left:12px;right:12px;bottom:12px;grid-template-columns:1fr 1fr;gap:8px}
+  .demorow .cue{font-size:11.5px;padding:9px 8px}
+  .vd img{width:104px;height:94px}
+  .vb{font-size:12.5px;max-width:150px;padding:8px 10px}
+  .voicerow{gap:10px;padding:0 8px}
+  .pmsg{font-size:14px;max-width:90%}
+
+  /* panel 4: chapters two by two */
+  /* the tiles and the film are 16:9, so the panel takes that shape rather than the tall one */
+  #b4{min-height:0}
+  /* a strip under the film holds the chapter buttons, so they never cover it */
+  #b4 .canvas{flex:none;height:calc((100vw - 40px) * 9 / 16 + 96px)}
+  #b4 .tiles,#b4 .vidwrap,#b4 .ytwrap,#b4 .missing,#b4 .packroom{bottom:84px}
+  #b4 .play{top:calc(50% - 42px)}
+  [data-mv="b4-play"]{bottom:28px}
+  .chaps{grid-template-columns:1fr 1fr;left:12px;right:12px}
+  .chaps button{font-size:11.5px;padding:7px 4px}
+  [data-mv="b4-chapters"]{bottom:8px}
+  .spd button{font-size:12px;padding:6px 11px}
+}
 </style>
 </head>
 <body>
